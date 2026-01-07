@@ -374,8 +374,8 @@ export default function Home() {
       if (currentImageIndex === null || !parsedData) return;
 
       if (e.key === "Escape" || e.key === " ") setCurrentImageIndex(null);
-      if (e.key === "ArrowRight") nextImage();
-      if (e.key === "ArrowLeft") prevImage();
+      if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") nextImage();
+      if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") prevImage();
 
       // Logika Rotasi 90 derajat
       if (e.key.toLowerCase() === "q") rotateImage("left");
