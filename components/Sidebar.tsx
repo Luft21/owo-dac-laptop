@@ -195,18 +195,6 @@ export default function Sidebar({
                     </div>
                 )}
             </div>
-            <div className="mt-4 flex-shrink-0">
-                <label className="font-semibold text-gray-300 mb-2 block">
-                    Alasan Penolakan
-                </label>
-                <textarea
-                    value={customReason}
-                    onChange={(e) => setCustomReason(e.target.value)}
-                    disabled={buttonsDisabled}
-                    className="w-full p-2 rounded-md bg-gray-700 border border-gray-600 text-sm text-white resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                />
-            </div>
 
             <div className="border-t border-gray-700 pt-4 mt-4 flex-shrink-0">
                 <p className="text-xs text-gray-400 mb-2 text-center">Pending: {pendingCount !== null ? pendingCount : '...'}</p>

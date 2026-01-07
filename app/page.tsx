@@ -37,6 +37,8 @@ export default function Home() {
   const [sidebarOptions, setSidebarOptions] = useState<EvaluationField[]>([]);
   const [customReason, setCustomReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [snBapp, setSnBapp] = useState('');
+  const [id, setId] = useState('');
 
   // Image Viewer State
   const [currentImageIndex, setCurrentImageIndex] = useState<number | null>(null);
@@ -98,6 +100,11 @@ export default function Home() {
     }
   }, [rawDataHtml, currentExtractedId]);
 
+  // Debug: Log ID when it changes
+  useEffect(() => {
+    console.log('Current ID State Updated:', id);
+  }, [id]);
+
   // Keyboard Navigation for Image Viewer
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -149,6 +156,8 @@ export default function Home() {
     setRawDataHtml('');
     setParsedData(null);
     setCurrentExtractedId(null);
+    setSnBapp('');
+
 
     // Use datasource session for these calls if they are hitting the same system
     // Wait, check-approval and get-detail hit 'https://kemdikdasmen.mastermedia.co.id'
@@ -282,7 +291,8 @@ export default function Home() {
       const json = await res.json();
 
       if (json.success && json.html) {
-        parseSidebarOptions(json.html);
+        setId(json.id_user)
+        parseSidebarOptions(json.html, json.id_user);
       } else {
         console.error("Failed to fetch form HTML:", json.message);
       }
@@ -292,11 +302,12 @@ export default function Home() {
     }
   };
 
-  const parseSidebarOptions = (html: string) => {
+  const parseSidebarOptions = (html: string, preloadedIdUser: string) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
     const fieldMapping: Omit<EvaluationField, 'options'>[] = [
+      { id: "F", label: "TGL BAPP", name: "ket_tgl_bapp" },
       { id: "G", label: "GEO TAGGING", name: "geo_tag" },
       { id: "H", label: "FOTO SEKOLAH/PAPAN NAMA", name: "f_papan_identitas" },
       { id: "I", label: "FOTO BOX & PIC", name: "f_box_pic" },
@@ -324,7 +335,6 @@ export default function Home() {
             opts.push(val);
           }
         });
-        console.log(opts)
       }
 
       // Fallback if no options found? Or maybe keep empty?
@@ -341,43 +351,163 @@ export default function Home() {
     setEvaluationForm(newDefaults);
   };
 
-  const submitApproval = async (status: number, note: string) => {
-    if (!parsedData || !parsedData.extractedId) return;
+
+  const submitToDataSource = async (isApproved: boolean) => {
+    // isApproved is mostly for tracking, but the payload is built from form state
+    // Logic:
+    // If Approved -> All "Sesuai" / "Ada" / "Lengkap" / "Konsisten"
+    // If Rejected -> Those specific fields are changed.
+    // But we just send what is in `evaluationForm`.
+
+    const session = localStorage.getItem('datasource_session');
+    if (!session || !parsedData || sheetData.length === 0) return;
+
+    const currentItem = sheetData[currentTaskIndex];
+
     setIsSubmitting(true);
-    const session_id = localStorage.getItem('dac_session');
 
     try {
-      const res = await fetch('/api/save-approval', {
+      // sn_bapp Logic:
+      // "BARCODE SN BAPP" is field 'O'. Check the value.
+      // If "Ada" (or "Sesuai" depending on exact option value), use system SN.
+      // Otherwise use manual input.
+      const barcodeSnStatus = evaluationForm['O'];
+      // Check options based on Sidebar.tsx errorMap or standard expectation
+      // If 'Ada' or 'Sesuai', copy from sheetData/parsedData
+      let finalSnBapp = snBapp;
+      if (barcodeSnStatus === 'Ada' || barcodeSnStatus === 'Sesuai') {
+        finalSnBapp = currentItem.serial_number;
+      }
+
+      const payload: Record<string, string> = {
+        id_user: id,
+        npsn: currentItem.npsn, // Use scrape data preferably
+        sn_penyedia: currentItem.serial_number,
+        cek_sn_penyedia: '0',
+        id_update: currentItem.action_id, // action_id is id_update
+        no_bapp: currentItem.bapp,       // bapp from scrape is no_bapp
+        ket_tgl_bapp: evaluationForm['F'],
+        tgl_bapp: verificationDate,
+        sn_bapp: finalSnBapp,
+        geo_tag: evaluationForm['G'],
+        f_papan_identitas: evaluationForm['H'],
+        f_box_pic: evaluationForm['I'],
+        f_unit: evaluationForm['J'],
+        spesifikasi_dxdiag: evaluationForm['K'],
+        bc_bapp_sn: evaluationForm['O'],
+        bapp_hal1: evaluationForm['Q'],
+        bapp_hal2: evaluationForm['R'],
+        nm_ttd_bapp: evaluationForm['S'],
+        stempel: evaluationForm['T'],
+      };
+
+      const res = await fetch('/api/datasource/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status,
-          id: parsedData.extractedId,
-          npsn: parsedData.school.npsn,
-          resi: parsedData.resi,
-          note,
-          session_id
+          payload,
+          cookie: session
         })
       });
-      const json = await res.json();
-      if (json.newSessionId) {
-      }
 
+      const json = await res.json();
       if (json.success) {
-        console.log('Approval submitted successfully');
-        // Removed Spreadsheet update
+        console.log('Submitted successfully');
+
+        let finalNote = '';
+
+        // If Rejected, fetch reason from view_form
+        if (!isApproved) {
+          try {
+            const viewRes = await fetch('/api/datasource/view-form', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: currentItem.action_id, cookie: session })
+            });
+            const viewJson = await viewRes.json();
+            if (viewJson.success && viewJson.html) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(viewJson.html, 'text/html');
+
+              // Strategy 1: Look for textarea with name="description" (Most likely location based on provided HTML)
+              const descInput = doc.querySelector('textarea[name="description"]') as HTMLTextAreaElement;
+              if (descInput) {
+                finalNote = descInput.value || descInput.textContent || '';
+              }
+
+              // Strategy 2: Fallback to "Keterangan" label search
+              if (!finalNote) {
+                const allElements = Array.from(doc.querySelectorAll('*'));
+                const labelEl = allElements.find(el =>
+                  el.children.length === 0 &&
+                  el.textContent &&
+                  (el.textContent.trim() === 'Keterangan' || el.textContent.trim() === 'Alasan Penolakan')
+                );
+
+                if (labelEl) {
+                  // Try parent's next sibling (div col-2 -> div col-10)
+                  if (labelEl.parentElement) {
+                    const parentNext = labelEl.parentElement.nextElementSibling;
+                    if (parentNext) {
+                      const input = parentNext.querySelector('input, textarea');
+                      if (input) finalNote = (input as HTMLInputElement).value || input.textContent || '';
+                      else finalNote = parentNext.textContent?.trim() || '';
+                    }
+                  }
+                }
+              }
+
+              // Strategy 3: Alert danger (last resort)
+              if (!finalNote) {
+                const alert = doc.querySelector('.alert.alert-danger');
+                if (alert) finalNote = alert.textContent?.trim() || '';
+              }
+
+              console.log("Parsed Rejection Note:", finalNote);
+            }
+          } catch (err) {
+            console.error("Error fetching view form", err);
+          }
+        }
+
+        // Call save-approval (DAC)
+        // status: 2 = Terima, 3 = Tolak
+        const dacSession = localStorage.getItem('dac_session');
+        if (dacSession && parsedData.extractedId) {
+          try {
+            await fetch('/api/save-approval', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: isApproved ? 2 : 3,
+                id: parsedData.extractedId,
+                npsn: parsedData.school.npsn,
+                resi: parsedData.resi,
+                note: finalNote,
+                session_id: dacSession
+              })
+            });
+            console.log('Saved to DAC');
+          } catch (dacErr) {
+            console.error("Failed to save to DAC", dacErr);
+            alert("Gagal menyimpan status ke DAC (Approval Data Source sukses)");
+          }
+        }
+
         handleSkip(false);
       } else {
-        console.error('Approval submission failed', json.message);
-        alert(`Gagal submit: ${json.message || 'Unknown error'}`);
+        console.error('Submit failed', json.message);
+        alert(`Gagal submit: ${json.message}`);
       }
+
     } catch (e) {
-      console.error('Submit error:', e);
+      console.error("Submit error", e);
       alert('Terjadi kesalahan saat submit.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const handleDacLoginSuccess = (data: { cookie: string, username: string }) => {
     localStorage.setItem('dac_session', data.cookie);
@@ -390,10 +520,10 @@ export default function Home() {
     setDataSourceAuthenticated(true);
   };
 
-  const handleTerima = async () => { await submitApproval(2, ''); };
+  const handleTerima = async () => { await submitToDataSource(true); };
   const handleTolak = async () => {
-    const note = customReason || 'Ditolak';
-    await submitApproval(3, note);
+    // const note = customReason || 'Ditolak';
+    await submitToDataSource(false);
   };
   const handleSkip = (skipped: boolean) => setCurrentTaskIndex(prev => prev + 1);
 
@@ -485,7 +615,14 @@ export default function Home() {
       {/* Layout for Image Viewer Modal */}
       {currentImageIndex !== null && parsedData && (
         <div>
-          <StickyInfoBox schoolData={parsedData.school} itemData={parsedData.item} date={verificationDate} setDate={setVerificationDate} />
+          <StickyInfoBox
+            schoolData={parsedData.school}
+            itemData={parsedData.item}
+            date={verificationDate}
+            setDate={setVerificationDate}
+            snBapp={snBapp}
+            setSnBapp={setSnBapp}
+          />
 
           <div className="absolute left-96 top-0 right-0 bottom-0 z-50 flex flex-col bg-black/95 backdrop-blur-sm"
             onClick={() => setCurrentImageIndex(null)}

@@ -1,20 +1,16 @@
-'use client';
-
 import { useRef, useState, useMemo, useEffect } from "react";
 import { useDraggable } from './hooks/useDraggable';
 
-export default function StickyInfoBox({
-    schoolData,
-    itemData,
-    date,
-    setDate,
-}: {
+interface StickyInfoBoxProps {
     schoolData: Record<string, string>;
     itemData: Record<string, string>;
     date: string;
     setDate: (date: string) => void;
-}) {
-    // State lifted to parent
+    snBapp: string;
+    setSnBapp: (val: string) => void;
+}
+
+export default function StickyInfoBox({ schoolData, itemData, date, setDate, snBapp, setSnBapp }: StickyInfoBoxProps) {
     const boxRef = useRef<HTMLDivElement>(null!);
     const { position, handleMouseDown } = useDraggable<HTMLDivElement>(
         boxRef,
@@ -37,7 +33,7 @@ export default function StickyInfoBox({
                 backgroundColor: '#18181b', // zinc-900
                 border: '2px solid #3f3f46', // zinc-700
             }}
-            className="text-zinc-100"
+            className="text-zinc-100 flex flex-col max-h-[80vh]"
         >
             {/* Header */}
             <div
@@ -54,60 +50,64 @@ export default function StickyInfoBox({
                     backgroundColor: "#27272a", // zinc-800
                     borderTopLeftRadius: "6px",
                     borderTopRightRadius: "6px",
+                    flexShrink: 0,
                 }}
             >
-                <div>
-                    <div style={{ fontWeight: "bold", fontSize: "15px", color: "#60a5fa" }}> {/* blue-400 */}
-                        {schoolData.nama_sekolah || 'Nama Sekolah'}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#a1a1aa" }}> {/* zinc-400 */}
-                        NPSN: {schoolData.npsn || '-'}
-                    </div>
+                <span className="font-bold text-white text-sm">Data Sekolah & Barang</span>
+                <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
                 </div>
             </div>
 
             {/* Content */}
-            <div style={{ padding: "12px 18px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="p-3 text-sm space-y-3 bg-zinc-900 text-white overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
 
-                {/* Date Input */}
-                <div className="mb-4">
-                    <label className="block text-xs font-bold text-zinc-500 mb-1 uppercase tracking-wider">Tanggal Verifikasi</label>
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
-                    />
-                </div>
-
-                <div style={{ fontWeight: "bold", fontSize: "13px", color: "#a1a1aa" }}> {/* zinc-400 */}
-                    Serial Number
-                </div>
-                <div style={{ fontSize: "16px", fontWeight: 600, color: "#ffffff" }}>
-                    {itemData.serial_number || '-'}
-                </div>
-
-                <div style={{ marginTop: "4px", fontSize: "13px", color: "#d4d4d8" }}> {/* zinc-300 */}
-                    {itemData.nama_barang || '-'}
-                </div>
-
-
-                {/* Alamat Section */}
-                <div
-                    style={{
-                        marginTop: "12px",
-                        border: "1px solid #3f3f46", // zinc-700
-                        borderRadius: "4px",
-                        padding: "8px",
-                    }}
-                >
-                    <div style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "4px", color: "#e4e4e7" }}> {/* zinc-200 */}
-                        Alamat
+                {/* School Info */}
+                <div className="space-y-1">
+                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Sekolah</div>
+                    <div className="font-bold text-blue-400 truncate" title={schoolData.nama_sekolah}>{schoolData.nama_sekolah || '-'}</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-zinc-300">
+                        <div><span className="text-zinc-500">NPSN:</span> {schoolData.npsn || '-'}</div>
+                        <div><span className="text-zinc-500">Kec:</span> {schoolData.kecamatan || '-'}</div>
                     </div>
-                    <div style={{ fontSize: "12px", color: "#d4d4d8", lineHeight: "1.4" }}> {/* zinc-300 */}
-                        {schoolData.alamat}, {schoolData.kecamatan}, {schoolData.kabupaten}, {schoolData.provinsi}
+                    <div className="text-xs text-zinc-400 truncate">{schoolData.alamat || '-'}</div>
+                </div>
+
+                <hr className="border-zinc-700" />
+
+                {/* Item Info */}
+                <div className="space-y-1">
+                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Barang</div>
+                    <div className="font-medium text-white truncate" title={itemData.nama_barang}>{itemData.nama_barang || '-'}</div>
+                    <div className="text-xs text-zinc-300"><span className="text-zinc-500">SN:</span> <span className="font-mono text-yellow-500">{itemData.serial_number || '-'}</span></div>
+                </div>
+
+                <hr className="border-zinc-700" />
+
+                {/* Inputs */}
+                <div className="space-y-2">
+                    <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">Tanggal Verifikasi</label>
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm"
+                            onMouseDown={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">Input SN BAPP</label>
+                        <input
+                            type="text"
+                            value={snBapp}
+                            onChange={(e) => setSnBapp(e.target.value)}
+                            placeholder="Input SN if mismatch"
+                            className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm font-mono placeholder-zinc-600"
+                            onMouseDown={(e) => e.stopPropagation()}
+                        />
                     </div>
                 </div>
 

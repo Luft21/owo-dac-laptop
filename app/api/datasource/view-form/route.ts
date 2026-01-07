@@ -13,11 +13,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: 'Missing Data Source URL configuration' }, { status: 500 });
         }
 
-        const targetUrl = `${baseUrl}/form/${id}`;
-        console.log(`Fetching form for ID: ${id} at ${targetUrl}`);
+        const targetUrl = `${baseUrl}/view_form/${id}`;
 
         const res = await fetch(targetUrl, {
-            method: 'GET', // Forms are usually GET, checking if this is correct. User said "form options dapet dari [URL]/form/[id]", usually a GET page.
+            method: 'GET',
             headers: {
                 'Cookie': `ci_session=${cookie}`,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -25,19 +24,15 @@ export async function POST(request: Request) {
         });
 
         if (!res.ok) {
-            return NextResponse.json({ success: false, message: `Failed to fetch form: ${res.status}` }, { status: res.status });
+            return NextResponse.json({ success: false, message: `Failed to fetch view form: ${res.status}` }, { status: res.status });
         }
 
         const html = await res.text();
 
-        // Extract id_user
-        const idUserMatch = html.match(/name=['"]id_user['"][^>]*?value=['"]([^'"]+)['"]/);
-        const id_user = idUserMatch ? idUserMatch[1] : null;
-
-        return NextResponse.json({ success: true, html, id_user });
+        return NextResponse.json({ success: true, html });
 
     } catch (error: any) {
-        console.error('Get Form Error:', error);
+        console.error('View Form Error:', error);
         return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
 }
