@@ -2,91 +2,14 @@
 import { useEffect } from 'react';
 import Spinner from "./Spinner";
 
-// New Data Structure
-export const evaluationFields = [
-    {
-        id: "G",
-        label: "GEO TAGGING",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada"],
-    },
-    {
-        id: "H",
-        label: "FOTO SEKOLAH/PAPAN NAMA",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada", "Tidak Terlihat Jelas"],
-    },
-    {
-        id: "I",
-        label: "FOTO BOX & PIC",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada"],
-    },
-    {
-        id: "J",
-        label: "FOTO KELENGKAPAN UNIT",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada"],
-    },
-    {
-        id: "K",
-        label: "DXDIAG",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada", "Tidak terlihat jelas"],
-    },
-    {
-        id: "O",
-        label: "BARCODE SN BAPP",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada", "Tidak Terlihat Jelas"],
-    },
-    {
-        id: "Q",
-        label: "BAPP HAL 1",
-        options: [
-            "Lengkap",
-            "Tidak Lengkap",
-            "Tidak Sesuai/Rusak/Tidak Ada",
-            "BAPP Tidak Jelas",
-            "Diedit",
-            "Tidak Ada",
-            "Ceklis tidak lengkap",
-            "Data tidak lengkap",
-            "Double ceklis",
-            "Data BAPP sekolah tidak sesuai",
-            "BAPP terpotong",
-        ],
-    },
-    {
-        id: "R",
-        label: "BAPP HAL 2",
-        options: [
-            "Lengkap",
-            "Tidak Lengkap",
-            "Ceklis Belum Dapat Diterima",
-            "BAPP Tidak Jelas",
-            "Diedit",
-            "Tidak Ada",
-            "Tanggal Tidak Ada",
-            "Tanggal Tidak Konsisten",
-            "Tidak Ada Paraf",
-            "Ceklis Tidak Lengkap",
-            "Double Ceklis",
-            "Ceklis tidak sesuai/tidak ada",
-            "BAPP terpotong",
-        ],
-    },
-    {
-        id: "S",
-        label: "TTD BAPP",
-        options: [
-            "Konsisten",
-            "Tidak Konsisten",
-            "TTD Tidak Ada",
-            "Tidak ada nama terang pada bagian tanda tangan",
-        ],
-    },
-    {
-        id: "T",
-        label: "STEMPEL",
-        options: ["Sesuai", "Tidak Sesuai", "Tidak Ada", "Tidak Terlihat"],
-    },
-];
+export interface EvaluationField {
+    id: string;
+    label: string;
+    name: string; // Added to map to HTML name
+    options: string[];
+}
 
+// Static Error Map (Keep as is for now, or move to dynamic if error messages change)
 export const errorMap: Record<string, Record<string, string>> = {
     G: {
         "Tidak Sesuai": "(5A) Geo Tagging tidak sesuai",
@@ -161,12 +84,6 @@ export const errorMap: Record<string, Record<string, string>> = {
     },
 };
 
-// Derive default values (assuming first option is correct)
-export const defaultEvaluationValues: Record<string, string> = {};
-evaluationFields.forEach(f => {
-    defaultEvaluationValues[f.id] = f.options[0];
-});
-
 interface RadioOptionProps {
     fieldId: string;
     option: string;
@@ -206,7 +123,12 @@ interface SidebarProps {
     setEvaluationForm: React.Dispatch<React.SetStateAction<Record<string, string>>>;
     customReason: string;
     setCustomReason: (val: string) => void;
+    sidebarOptions: EvaluationField[];
 }
+
+export const defaultEvaluationValues: Record<string, string> = {};
+// Note: defaultEvaluationValues is now just a placeholder. 
+// Values should be initialized in parent based on sidebarOptions.
 
 export default function Sidebar({
     pendingCount,
@@ -218,6 +140,7 @@ export default function Sidebar({
     setEvaluationForm,
     customReason,
     setCustomReason,
+    sidebarOptions,
 }: SidebarProps) {
 
     // Auto-update reason when form changes
@@ -235,7 +158,11 @@ export default function Sidebar({
         setEvaluationForm((prev) => ({ ...prev, [id]: value }));
     };
 
-    const isFormDefault = Object.keys(defaultEvaluationValues).every(key => evaluationForm[key] === defaultEvaluationValues[key]);
+    // calculate isFormDefault based on first options
+    const isFormDefault = sidebarOptions.every(field => {
+        const defaultVal = field.options[0];
+        return evaluationForm[field.id] === defaultVal;
+    });
 
     const buttonsDisabled = isSubmitting || pendingCount === null || pendingCount === 0;
 
@@ -251,27 +178,31 @@ export default function Sidebar({
                 FORM EVALUASI
             </h1>
             <div className="flex-grow mt-4 overflow-y-auto pr-2 custom-scrollbar">
-                <div className="flex flex-col gap-4">
-                    {evaluationFields.map((field) => (
-                        <div key={field.id} className="text-left text-sm">
-                            <label className="font-semibold text-gray-300 mb-2 block">
-                                {field.label}
-                            </label>
-                            <div className="flex flex-wrap gap-1">
-                                {field.options.map((opt) => (
-                                    <RadioOption
-                                        key={opt}
-                                        fieldId={field.id}
-                                        option={opt}
-                                        checked={evaluationForm[field.id] === opt}
-                                        onChange={handleFormChange}
-                                        disabled={buttonsDisabled}
-                                    />
-                                ))}
+                {sidebarOptions.length === 0 ? (
+                    <div className="text-gray-400 text-sm text-center mt-10">Loading form options...</div>
+                ) : (
+                    <div className="flex flex-col gap-4">
+                        {sidebarOptions.map((field) => (
+                            <div key={field.id} className="text-left text-sm">
+                                <label className="font-semibold text-gray-300 mb-2 block">
+                                    {field.label}
+                                </label>
+                                <div className="flex flex-wrap gap-1">
+                                    {field.options.map((opt) => (
+                                        <RadioOption
+                                            key={opt}
+                                            fieldId={field.id}
+                                            option={opt}
+                                            checked={evaluationForm[field.id] === opt}
+                                            onChange={handleFormChange}
+                                            disabled={buttonsDisabled}
+                                        />
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
             <div className="mt-4 flex-shrink-0">
                 <label className="font-semibold text-gray-300 mb-2 block">

@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface LoginProps {
-    onLoginSuccess: () => void;
+    title?: string;
+    loginType: 'dac' | 'datasource';
+    onLoginSuccess: (data: { cookie: string, username: string }) => void;
 }
 
-export default function Login({ onLoginSuccess }: LoginProps) {
+export default function Login({ title, loginType, onLoginSuccess }: LoginProps) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -23,40 +25,28 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ username, password, type: loginType }),
             });
 
             const data = await res.json();
 
             if (data.success) {
-                // Store session
-                // Parse the set-cookie header to get just the session ID
-                // Example: ci_session=qqrnm485he05rpnrmebbe1ko4l7qbr8l; expires=...
-                let sessionValue = 'active_session_placeholder';
+                let sessionValue = '';
 
                 if (data.cookie) {
+                    // Try to parse just the ID, but keep full string if needed or fallback
                     const match = data.cookie.match(/ci_session=([^;]+)/);
                     if (match && match[1]) {
                         sessionValue = match[1];
                     } else {
-                        console.warn('Could not parse ci_session from:', data.cookie);
-                        // Fallback to the whole string if regex fails, or keep placeholder
-                        // User wants strictly the ID, but if regex fails, might be safer to log or store raw?
-                        // Given user request "cuma butuh [id]", if logic fails, let's just store raw but warn.
+                        // Fallback: If regex fails, assume maybe the whole thing is useful or let parent decide
                         sessionValue = data.cookie;
                     }
                 }
 
-                localStorage.setItem('ci_session', sessionValue);
-                // Store credentials for auto-relogin
-                localStorage.setItem('username', username);
-                localStorage.setItem('password', password);
+                // Pass back the session data
+                onLoginSuccess({ cookie: sessionValue, username });
 
-                // Successfully logged in
-                // We do NOT fetch service account from backend anymore.
-                // The user will be prompted to upload it in the next step if missing.
-
-                onLoginSuccess();
             } else {
                 setError(data.message || 'Login failed');
             }
@@ -70,7 +60,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
             <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-                <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white">Login</h2>
+                <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white">
+                    {title || 'Login'}
+                </h2>
                 {error && (
                     <div className="p-3 text-sm text-red-500 bg-red-100 rounded dark:bg-red-900/30 dark:text-red-400">
                         {error}

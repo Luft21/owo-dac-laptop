@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { username, password } = body;
+        const { username, password, type } = body;
 
         if (!username || !password) {
             return NextResponse.json({ success: false, message: 'Username and password are required' }, { status: 400 });
@@ -12,9 +12,20 @@ export async function POST(request: Request) {
         const formData = new FormData();
         formData.append('username', username);
         formData.append('password', password);
+        let loginUrl;
+        let baseUrl;
+        if (type == "datasource") {
+            baseUrl = process.env.NEXT_PUBLIC_DATASOURCE_URL;
+            loginUrl = `${baseUrl}/auth/login`;
+            formData.append('submit', '');
+        } else {
+            baseUrl = process.env.NEXT_PUBLIC_DAC_URL;
+            loginUrl = `${baseUrl}/auth/ajax_login/`;
+        }
 
-        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://kemdikdasmen.mastermedia.co.id';
-        const loginUrl = `${baseUrl}/auth/ajax_login/`;
+        if (!baseUrl) {
+            return NextResponse.json({ success: false, message: 'Configuration error: Missing Base URL' }, { status: 500 });
+        }
 
         const response = await fetch(loginUrl, {
             method: 'POST',
