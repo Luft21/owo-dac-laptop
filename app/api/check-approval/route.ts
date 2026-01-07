@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
         const targetUrl = 'https://kemdikdasmen.mastermedia.co.id/app/approval/filter_table';
 
-        console.log(`Checking approval for SN: ${sn}, NPSN: ${npsnValue}`);
+        // console.log(`Checking approval for SN: ${sn}, NPSN: ${npsnValue}`);
 
         const res = await fetch(targetUrl, {
             method: 'POST',
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         });
 
         const responseText = await res.text();
-        console.log('Approval API Status:', responseText);
+        // console.log('Approval API Status:', responseText);
 
         // Attempt parsing JSON if possible, otherwise return text
         let data;
