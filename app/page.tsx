@@ -472,42 +472,7 @@ export default function Home() {
             if (descInput) {
               finalNote = descInput.value || descInput.textContent || "";
             }
-
-            // Strategy 2: Fallback to "Keterangan" label search
-            if (!finalNote) {
-              const allElements = Array.from(doc.querySelectorAll("*"));
-              const labelEl = allElements.find(
-                (el) =>
-                  el.children.length === 0 &&
-                  el.textContent &&
-                  (el.textContent.trim() === "Keterangan" ||
-                    el.textContent.trim() === "Alasan Penolakan")
-              );
-
-              if (labelEl) {
-                // Try parent's next sibling (div col-2 -> div col-10)
-                if (labelEl.parentElement) {
-                  const parentNext = labelEl.parentElement.nextElementSibling;
-                  if (parentNext) {
-                    const input = parentNext.querySelector("input, textarea");
-                    if (input)
-                      finalNote =
-                        (input as HTMLInputElement).value ||
-                        input.textContent ||
-                        "";
-                    else finalNote = parentNext.textContent?.trim() || "";
-                  }
-                }
-              }
-            }
-
-            // Strategy 3: Alert danger (last resort)
-            if (!finalNote) {
-              const alert = doc.querySelector(".alert.alert-danger");
-              if (alert) finalNote = alert.textContent?.trim() || "";
-            }
-
-            console.log("Parsed Rejection Note:", finalNote);
+            console.log("Parsed Rejection Note:", finalNote,"and status", finalNote.length> 0 ? "Rejected" : "Approved");
           }
         } catch (err) {
           console.error("Error fetching view form", err);
