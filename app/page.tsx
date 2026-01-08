@@ -87,7 +87,7 @@ export default function Home() {
       if (currentTaskIndex < sheetData.length) {
         handleSelectItem(sheetData[currentTaskIndex]);
         // Reset Form
-        // setEvaluationForm(defaultEvaluationValues); // Removed constant default
+        setEvaluationForm(defaultEvaluationValues); // Removed constant default
         // Logic to reset form based on current options will be handled in useEffect or Sidebar
         setCustomReason("");
       } else {
@@ -113,23 +113,6 @@ export default function Home() {
   useEffect(() => {
     console.log("Current ID State Updated:", id);
   }, [id]);
-
-  // // Keyboard Navigation for Image Viewer
-  // useEffect(() => {
-  //   const handleKey = (e: KeyboardEvent) => {
-  //     if (currentImageIndex === null || !parsedData) return;
-  //     if (e.key === "Escape" || e.key === "Space") setCurrentImageIndex(null);
-  //     if (e.key === "ArrowRight")
-  //       setCurrentImageIndex((p) => (p! + 1) %
-  //      parsedData.images.length);
-  //     if (e.key === "ArrowLeft")
-  //       setCurrentImageIndex(
-  //         (p) => (p! - 1 + parsedData.images.length) % parsedData.images.length
-  //       );
-  //   };
-  //   window.addEventListener("keydown", handleKey);
-  //   return () => window.removeEventListener("keydown", handleKey);
-  // }, [currentImageIndex, parsedData]);
 
   const fetchScrapedData = async () => {
     const dsSession = localStorage.getItem("datasource_session");
@@ -612,6 +595,7 @@ export default function Home() {
     checkDoubleData();
   }, [parsedData?.school?.npsn]); // Hanya berjalan ketika NPSN pada parsedData berubah
 
+  // Effect untuk Keyboard dan Mouse Macro di Image Viewer
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (currentImageIndex === null || !parsedData) return;
