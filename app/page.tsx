@@ -480,9 +480,39 @@ export default function Home() {
 
         // Call save-approval (DAC)
         // status: 2 = Terima, 3 = Tolak
-        const dacSession = localStorage.getItem("dac_session");
-        if (dacSession && parsedData.extractedId) {
-          console.log("masook");
+
+        // RE-LOGIN DAC LOGIC (Auto-Refresh Session)
+        const savedUser = localStorage.getItem('username');
+        const savedPass = localStorage.getItem('dac_password');
+        let currentDacSession = localStorage.getItem("dac_session");
+
+        if (savedUser && savedPass) {
+          try {
+            // Silently refresh session
+            const loginRes = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: savedUser, password: savedPass, type: 'dac' }),
+            });
+            const loginJson = await loginRes.json();
+            if (loginJson.success && loginJson.cookie) {
+              // Extract cookie value if needed, similar to Login.tsx
+              let newSession = loginJson.cookie;
+              const match = newSession.match(/ci_session=([^;]+)/);
+              if (match && match[1]) {
+                newSession = match[1];
+              }
+
+              localStorage.setItem("dac_session", newSession);
+              currentDacSession = newSession;
+              console.log("DAC Session Refreshed automatically");
+            }
+          } catch (ignore) {
+            console.warn("Failed to auto-refresh DAC session, trying with existing one");
+          }
+        }
+
+        if (currentDacSession && parsedData.extractedId) {
           try {
             await fetch("/api/save-approval", {
               method: "POST",
@@ -493,7 +523,7 @@ export default function Home() {
                 npsn: parsedData.school.npsn,
                 resi: parsedData.resi,
                 note: finalNote,
-                session_id: dacSession,
+                session_id: currentDacSession,
               }),
             });
             console.log("Saved to DAC");
@@ -548,8 +578,8 @@ export default function Home() {
 
             alert(
               `⚠️ PERINGATAN: Terdeteksi ${json.data.length} data untuk NPSN: ${parsedData.school.npsn}.\n\n` +
-                `Daftar SN yang terdaftar:\n${snList}\n\n` +
-                `Harap teliti kembali sebelum melakukan approval.`
+              `Daftar SN yang terdaftar:\n${snList}\n\n` +
+              `Harap teliti kembali sebelum melakukan approval.`
             );
           }
         }
@@ -777,8 +807,8 @@ export default function Home() {
               {detailLoading
                 ? "Loading task data..."
                 : sheetData.length === 0
-                ? "Fetching task list..."
-                : "All tasks completed!"}
+                  ? "Fetching task list..."
+                  : "All tasks completed!"}
             </div>
           )}
         </div>
@@ -862,7 +892,7 @@ export default function Home() {
                 e.stopPropagation();
                 setCurrentImageIndex(
                   (currentImageIndex - 1 + parsedData.images.length) %
-                    parsedData.images.length
+                  parsedData.images.length
                 );
               }}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4"

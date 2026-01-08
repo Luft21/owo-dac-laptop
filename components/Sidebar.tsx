@@ -102,10 +102,9 @@ const RadioOption = ({
     onClick={() => onChange(fieldId, option)}
     disabled={disabled}
     className={`px-3 py-1 text-xs rounded-full border transition-colors disabled:opacity-50 mb-1 mr-1
-      ${
-        checked
-          ? "bg-blue-500 border-blue-500 text-white font-semibold"
-          : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
+      ${checked
+        ? "bg-blue-500 border-blue-500 text-white font-semibold"
+        : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
       }`}
   >
     {option}
@@ -226,22 +225,33 @@ export default function Sidebar({
           <button
             onClick={() => handleSkip(true)}
             disabled={buttonsDisabled}
-            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${
-              isSubmitting ? "animate-pulse" : ""
-            }`}
+            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${isSubmitting ? "animate-pulse" : ""
+              }`}
           >
             {isSubmitting ? <Spinner /> : "SKIP"}
           </button>
           <button
             onClick={mainButtonAction}
             disabled={buttonsDisabled}
-            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${
-              isSubmitting ? "animate-pulse" : ""
-            }`}
+            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${isSubmitting ? "animate-pulse" : ""
+              }`}
           >
             {isSubmitting ? <Spinner /> : mainButtonLabel}
           </button>
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={() => {
+            if (confirm('Are you sure you want to logout? This will clear all local session data.')) {
+              localStorage.clear();
+              window.location.reload();
+            }
+          }}
+          className="w-full mt-3 p-2 bg-red-700/50 hover:bg-red-900/50 text-zinc-400 hover:text-red-200 text-xs rounded border border-zinc-700 hover:border-red-800 transition-colors"
+        >
+          LOGOUT & CLEAR STORAGE
+        </button>
       </div>
     </aside>
   );

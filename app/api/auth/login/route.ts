@@ -12,16 +12,8 @@ export async function POST(request: Request) {
         const formData = new FormData();
         formData.append('username', username);
         formData.append('password', password);
-        let loginUrl;
-        let baseUrl;
-        if (type == "datasource") {
-            baseUrl = process.env.NEXT_PUBLIC_DATASOURCE_URL;
-            loginUrl = `${baseUrl}/auth/login`;
-            formData.append('submit', '');
-        } else {
-            baseUrl = process.env.NEXT_PUBLIC_DAC_URL;
-            loginUrl = `${baseUrl}/auth/ajax_login/`;
-        }
+        const baseUrl = process.env.NEXT_PUBLIC_DAC_URL;
+        const loginUrl = `${baseUrl}/auth/ajax_login/`;
 
         if (!baseUrl) {
             return NextResponse.json({ success: false, message: 'Configuration error: Missing Base URL' }, { status: 500 });
