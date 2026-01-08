@@ -472,7 +472,35 @@ export default function Home() {
             if (descInput) {
               finalNote = descInput.value || descInput.textContent || "";
             }
-            console.log("Parsed Rejection Note:", finalNote,"and status", finalNote.length> 0 ? "Rejected" : "Approved");
+
+            // Strategy 2
+            const alerts = Array.from(
+              doc.querySelectorAll(".alert.alert-danger")
+            );
+            const isPihakPertamaError = alerts.some((alert) =>
+              /Pihak pertama/i.test(alert.textContent || "")
+            );
+
+            if (isPihakPertamaError) {
+              const pihakPertamaNote =
+                "(1AN) Pihak pertama hanya boleh dari kepala sekolah/wakil kepala sekolah/guru/pengajar/operator sekolah";
+
+              // Gabungkan jika finalNote sudah ada isinya, jika tidak langsung set
+              if (finalNote.length > 0) {
+                // Menambahkan spasi atau baris baru sebagai pemisah
+                finalNote = `${finalNote} ${pihakPertamaNote}`;
+              } else {
+                finalNote = pihakPertamaNote;
+              }
+            }
+            console.log("strategy 2 alerts:", alerts, isPihakPertamaError);
+
+            console.log(
+              "Parsed Rejection Note:",
+              finalNote,
+              "and status",
+              finalNote.length > 0 ? "Rejected" : "Approved"
+            );
           }
         } catch (err) {
           console.error("Error fetching view form", err);
@@ -482,17 +510,21 @@ export default function Home() {
         // status: 2 = Terima, 3 = Tolak
 
         // RE-LOGIN DAC LOGIC (Auto-Refresh Session)
-        const savedUser = localStorage.getItem('username');
-        const savedPass = localStorage.getItem('dac_password');
+        const savedUser = localStorage.getItem("username");
+        const savedPass = localStorage.getItem("dac_password");
         let currentDacSession = localStorage.getItem("dac_session");
 
         if (savedUser && savedPass) {
           try {
             // Silently refresh session
-            const loginRes = await fetch('/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: savedUser, password: savedPass, type: 'dac' }),
+            const loginRes = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                username: savedUser,
+                password: savedPass,
+                type: "dac",
+              }),
             });
             const loginJson = await loginRes.json();
             if (loginJson.success && loginJson.cookie) {
@@ -508,7 +540,9 @@ export default function Home() {
               console.log("DAC Session Refreshed automatically");
             }
           } catch (ignore) {
-            console.warn("Failed to auto-refresh DAC session, trying with existing one");
+            console.warn(
+              "Failed to auto-refresh DAC session, trying with existing one"
+            );
           }
         }
 
@@ -578,8 +612,8 @@ export default function Home() {
 
             alert(
               `⚠️ PERINGATAN: Terdeteksi ${json.data.length} data untuk NPSN: ${parsedData.school.npsn}.\n\n` +
-              `Daftar SN yang terdaftar:\n${snList}\n\n` +
-              `Harap teliti kembali sebelum melakukan approval.`
+                `Daftar SN yang terdaftar:\n${snList}\n\n` +
+                `Harap teliti kembali sebelum melakukan approval.`
             );
           }
         }
@@ -807,8 +841,8 @@ export default function Home() {
               {detailLoading
                 ? "Loading task data..."
                 : sheetData.length === 0
-                  ? "Fetching task list..."
-                  : "All tasks completed!"}
+                ? "Fetching task list..."
+                : "All tasks completed!"}
             </div>
           )}
         </div>
@@ -892,7 +926,7 @@ export default function Home() {
                 e.stopPropagation();
                 setCurrentImageIndex(
                   (currentImageIndex - 1 + parsedData.images.length) %
-                  parsedData.images.length
+                    parsedData.images.length
                 );
               }}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4"
