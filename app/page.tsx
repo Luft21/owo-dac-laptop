@@ -904,13 +904,6 @@ export default function Home() {
           <StickyInfoBox
             schoolData={parsedData.school}
             itemData={parsedData.item}
-            date={verificationDate}
-            setDate={setVerificationDate}
-            snBapp={snBapp}
-            setSnBapp={setSnBapp}
-            // Hide inputs in sticky box if they are shown in sidebar
-            hideDate={currentImageIndex === 4}
-            hideSn={currentImageIndex === 3}
           />
 
           <div

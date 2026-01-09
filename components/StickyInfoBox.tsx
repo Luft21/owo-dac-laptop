@@ -4,47 +4,17 @@ import { useDraggable } from "./hooks/useDraggable";
 interface StickyInfoBoxProps {
   schoolData: Record<string, string>;
   itemData: Record<string, string>;
-  date: string;
-  setDate: (date: string) => void;
-  snBapp: string;
-  setSnBapp: (val: string) => void;
-  hideDate?: boolean;
-  hideSn?: boolean;
 }
 
 export default function StickyInfoBox({
   schoolData,
   itemData,
-  date,
-  setDate,
-  snBapp,
-  setSnBapp,
-  hideDate = false,
-  hideSn = false
 }: StickyInfoBoxProps) {
   const boxRef = useRef<HTMLDivElement>(null!);
   const { position, handleMouseDown } = useDraggable<HTMLDivElement>(
     boxRef,
     "sticky-info-box"
   );
-  const handleDateWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-    // Pastikan ada tanggal yang terpilih
-    if (!date) return;
-
-    const currentDate = new Date(date);
-
-    const daysToAdd = e.deltaY > 0 ? -1 : 1;
-
-    currentDate.setDate(currentDate.getDate() + daysToAdd);
-
-    // Format kembali ke YYYY-MM-DD untuk input date
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-    const day = String(currentDate.getDate()).padStart(2, "0");
-
-    const formattedDate = `${year}-${month}-${day}`;
-    setDate(formattedDate);
-  };
 
   return (
     <div
@@ -152,44 +122,6 @@ export default function StickyInfoBox({
           </div>
         </div>
 
-        <hr className="border-zinc-700" />
-
-        {/* Inputs */}
-        <div className="space-y-2">
-          {!hideDate && (
-            <div>
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                Tanggal Verifikasi
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                onWheel={(e) => {
-                  e.preventDefault();
-                  handleDateWheel(e);
-                }}
-                className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm"
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-            </div>
-          )}
-          {!hideSn && (
-            <div>
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                Input SN BAPP
-              </label>
-              <input
-                type="text"
-                value={snBapp}
-                onChange={(e) => setSnBapp(e.target.value)}
-                placeholder="Input SN if mismatch"
-                className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm font-mono placeholder-zinc-600"
-                onMouseDown={(e) => e.stopPropagation()}
-              />
-            </div>
-          )}
-        </div>
       </div>
     </div >
   );
