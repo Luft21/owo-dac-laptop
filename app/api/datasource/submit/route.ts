@@ -11,45 +11,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const baseUrl = process.env.NEXT_PUBLIC_DATASOURCE_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { success: false, message: "Missing Data Source URL configuration" },
+        { status: 500 }
+      );
+    }
+
     const formData = new FormData();
     Object.keys(payload).forEach((key) => {
-      formData.append(key, payload[key] || "");
+      // Ensure we append strings for FormData
+      const val = payload[key];
+      formData.append(key, val == null ? "" : String(val));
     });
 
     console.log("Submitting form with payload:", payload);
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_DATASOURCE_URL}/form_bapp/submit`,
-      {
-        method: "POST",
-        headers: {
-          Cookie: `ci_session=${cookie}`,
-          // Do NOT set Content-Type here, let fetch set it with boundary for FormData
-        },
-        body: formData,
-      }
-    );
 
-    // The response might be a redirect or HTML.
-    // If it's a redirect 302, fetch follows it by default.
-    // We should check if the final URL or content indicates success.
-    // Usually these forms redirect to a list or show a success message.
+    const target = `${baseUrl}/form_bapp/submit`;
+    const res = await fetch(target, {
+      method: "POST",
+      headers: {
+        Cookie: `ci_session=${cookie}`,
+        // Let fetch set Content-Type for FormData
+      },
+      body: formData,
+    });
 
-    // For now, let's assume if status is 200 it's likely OK, but we should parse response if possible.
     const text = await res.text();
 
-    // Check for common error indicators in HTML if needed
-    // But usually simple 200 is fine for this step unless we want to be strict.
+    if (!res.ok) {
+      console.error("Forwarded submit returned non-ok:", res.status, text.slice(0, 300));
+      return NextResponse.json(
+        { success: false, message: `Data source responded ${res.status}` },
+        { status: res.status }
+      );
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: "Submitted",
-      debug: text.substring(0, 100),
-    });
-  } catch (error) {
+    return NextResponse.json({ success: true, message: "Submitted" });
+  } catch (error: any) {
     console.error("Submit API error:", error);
-    return NextResponse.json(
-      { success: false, message: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: error.message || String(error) }, { status: 500 });
   }
 }
