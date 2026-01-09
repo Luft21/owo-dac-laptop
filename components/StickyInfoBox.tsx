@@ -85,11 +85,11 @@ export default function StickyInfoBox({
         <span className="font-bold text-white text-sm">
           Data Sekolah & Barang
         </span>
-        <div className="flex gap-1">
+        {/* <div className="flex gap-1">
           <div className="w-2 h-2 rounded-full bg-red-500"></div>
           <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
           <div className="w-2 h-2 rounded-full bg-green-500"></div>
-        </div>
+        </div> */}
       </div>
 
       {/* Content */}
@@ -99,27 +99,35 @@ export default function StickyInfoBox({
       >
         {/* School Info */}
         <div className="space-y-1">
-          <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            Sekolah
-          </div>
           <div
             className="font-bold text-blue-400 truncate"
             title={schoolData.nama_sekolah}
           >
             {schoolData.nama_sekolah || "-"}
           </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-zinc-300">
-            <div>
-              <span className="text-zinc-500">NPSN:</span>{" "}
+          <div>
+            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              NPSN
+            </div>
+            <div className="text-lg font-mono text-yellow-500">
               {schoolData.npsn || "-"}
             </div>
-            <div>
-              <span className="text-zinc-500">Kec:</span>{" "}
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Kecamatan
+            </div>
+            <div className="text-xs text-white truncate">
               {schoolData.kecamatan || "-"}
             </div>
           </div>
-          <div className="text-xs text-zinc-400 truncate">
-            {schoolData.alamat || "-"}
+          <div>
+            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Alamat
+            </div>
+            <div className="text-xs text-white truncate">
+              {schoolData.alamat || "-"}
+            </div>
           </div>
         </div>
 
@@ -131,16 +139,16 @@ export default function StickyInfoBox({
             Barang
           </div>
           <div
-            className="font-medium text-white truncate"
+            className="text-xs text-white truncate"
             title={itemData.nama_barang}
           >
             {itemData.nama_barang || "-"}
           </div>
-          <div className="text-xs text-zinc-300">
-            <span className="text-zinc-500">SN:</span>{" "}
-            <span className="font-mono text-yellow-500">
-              {itemData.serial_number || "-"}
-            </span>
+          <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+            Serial Number
+          </div>
+          <div className="text-lg font-mono text-yellow-500">
+            {itemData.serial_number || "-"}
           </div>
         </div>
 
