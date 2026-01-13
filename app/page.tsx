@@ -9,12 +9,18 @@ import Sidebar, {
 import StickyInfoBox from "@/components/StickyInfoBox";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
+interface ApprovalLog {
+  date: string;
+  status: string;
+  user: string;
+  note: string;
+}
 // Helper Interface
 interface ExtractedData {
   school: Record<string, string>;
   item: Record<string, string>;
   images: Array<{ src: string; title: string }>;
-  history: string[]; // Simple array of strings for history
+  history: ApprovalLog[]; // Simple array of strings for history
   extractedId: string;
   resi: string;
 }
@@ -45,7 +51,9 @@ export default function Home() {
   const [snBapp, setSnBapp] = useState("");
 
   // Sidebar Layout State
-  const [sidebarPosition, setSidebarPosition] = useState<"left" | "right">("left");
+  const [sidebarPosition, setSidebarPosition] = useState<"left" | "right">(
+    "left"
+  );
 
   useEffect(() => {
     const storedPos = localStorage.getItem("sidebar_layout");
@@ -124,10 +132,11 @@ export default function Home() {
     };
 
     // Execute concurrently
-    Promise.all([refreshSession("dac"), refreshSession("datasource")]).finally(() => {
-      setIsLoading(false);
-    });
-
+    Promise.all([refreshSession("dac"), refreshSession("datasource")]).finally(
+      () => {
+        setIsLoading(false);
+      }
+    );
   }, []);
 
   // Fetch Data when authenticated
@@ -193,7 +202,7 @@ export default function Home() {
           // Let's keep original order for now unless specified
           return 0;
         });
-        setSheetData(sorted);
+        setSheetData(sorted); // Reverse to have oldest first
         setCurrentTaskIndex(0);
       } else {
         console.error("Failed to fetch scraped data:", json.message);
@@ -313,12 +322,36 @@ export default function Home() {
         });
       }
     });
+    // Ekstraksi Log Approval
+    const logs: ApprovalLog[] = [];
+    const logContainer = doc.querySelector("#logApproval .accordion-body");
+
+    if (logContainer) {
+      // Berdasarkan struktur HTML admin dashboard biasanya (border rounded p-3 mb-2)
+      const logEntries = logContainer.querySelectorAll(".border.rounded");
+      logEntries.forEach((entry) => {
+        logs.push({
+          date: entry.querySelector(".text-muted")?.textContent?.trim() || "",
+          status: entry.querySelector(".fw-bold")?.textContent?.trim() || "",
+          user:
+            entry
+              .querySelector(".fw-semibold")
+              ?.textContent?.replace("User:", "")
+              .trim() || "",
+          note:
+            entry
+              .querySelector(".fst-italic")
+              ?.textContent?.replace("Catatan:", "")
+              .trim() || "-",
+        });
+      });
+    }
 
     setParsedData({
       school,
       item,
       images: imgs,
-      history: [],
+      history: logs,
       extractedId: htmlId || initialExtractedId,
       resi: resi || "-",
     });
@@ -571,7 +604,8 @@ export default function Home() {
 
         if (storedDac) {
           try {
-            const { username: dacUser, password: dacPass } = JSON.parse(storedDac);
+            const { username: dacUser, password: dacPass } =
+              JSON.parse(storedDac);
             if (dacUser && dacPass) {
               // Silently refresh session
               const loginRes = await fetch("/api/auth/login", {
@@ -672,8 +706,8 @@ export default function Home() {
 
             alert(
               `⚠️ PERINGATAN: Terdeteksi ${json.data.length} data untuk NPSN: ${parsedData.school.npsn}.\n\n` +
-              `Daftar SN yang terdaftar:\n${snList}\n\n` +
-              `Harap teliti kembali sebelum melakukan approval.`
+                `Daftar SN yang terdaftar:\n${snList}\n\n` +
+                `Harap teliti kembali sebelum melakukan approval.`
             );
           }
         }
@@ -799,7 +833,11 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-black overflow-hidden relative">
       {/* Main Content */}
-      <div className={`flex-1 h-full overflow-hidden relative bg-zinc-50/50 dark:bg-zinc-900/50 ${sidebarPosition === "left" ? "order-2" : "order-1"}`}>
+      <div
+        className={`flex-1 h-full overflow-hidden relative bg-zinc-50/50 dark:bg-zinc-900/50 ${
+          sidebarPosition === "left" ? "order-2" : "order-1"
+        }`}
+      >
         <div className="h-full overflow-y-auto p-4 md:p-6 custom-scrollbar">
           {parsedData && !detailLoading ? (
             <div className="max-w-5xl mx-auto flex flex-col gap-6">
@@ -849,7 +887,60 @@ export default function Home() {
                   />
                 </div>
               </div>
+              {/* Log Approval Section */}
+              <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  Riwayat Approval
+                </h2>
 
+                {parsedData.history.length > 0 ? (
+                  <div className="space-y-3">
+                    {parsedData.history.map((log, idx) => (
+                      <div
+                        key={idx}
+                        className={`border dark:border-zinc-700 rounded-lg p-4 dark:bg-zinc-900/30 ${
+                          log.status.toLowerCase().includes("setuju") ||
+                          log.status.toLowerCase().includes("terima")
+                            ? "bg-green-100"
+                            : "bg-red-100"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs text-zinc-500 font-mono">
+                            {log.date}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              log.status.toLowerCase().includes("setuju") ||
+                              log.status.toLowerCase().includes("terima")
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            }`}
+                          >
+                            {log.status}
+                          </span>
+                        </div>
+                        {log.user && (
+                          <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                            Oleh: {log.user}
+                          </div>
+                        )}
+                        <div className="text-sm text-zinc-600 dark:text-zinc-400 italic">
+                          <span className="font-medium not-italic">
+                            Catatan:
+                          </span>{" "}
+                          {log.note}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-zinc-400 text-sm italic">
+                    Belum ada riwayat approval untuk item ini.
+                  </div>
+                )}
+              </div>
               {/* Image Gallery */}
               <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2">
@@ -885,15 +976,21 @@ export default function Home() {
               {detailLoading
                 ? "Loading task data..."
                 : sheetData.length === 0
-                  ? "Fetching task list..."
-                  : "All tasks completed!"}
+                ? "Fetching task list..."
+                : "All tasks completed!"}
             </div>
           )}
         </div>
       </div>
 
       {/* Sidebar */}
-      <div className={`flex-shrink-0 h-full ${sidebarPosition === "left" ? "order-1 border-r border-zinc-700" : "order-2 border-l border-zinc-700"}`}>
+      <div
+        className={`flex-shrink-0 h-full ${
+          sidebarPosition === "left"
+            ? "order-1 border-r border-zinc-700"
+            : "order-2 border-l border-zinc-700"
+        }`}
+      >
         <Sidebar
           pendingCount={sheetData.length - currentTaskIndex}
           handleTerima={handleTerima}
@@ -924,10 +1021,9 @@ export default function Home() {
           />
 
           <div
-            className={`absolute top-0 bottom-0 z-50 flex flex-col bg-black/95 backdrop-blur-sm transition-all duration-300 ${sidebarPosition === "left"
-              ? "left-96 right-0"
-              : "left-0 right-96"
-              }`}
+            className={`absolute top-0 bottom-0 z-50 flex flex-col bg-black/95 backdrop-blur-sm transition-all duration-300 ${
+              sidebarPosition === "left" ? "left-96 right-0" : "left-0 right-96"
+            }`}
             onClick={() => setCurrentImageIndex(null)}
           >
             {/* Sticky Info */}
@@ -992,7 +1088,7 @@ export default function Home() {
                 e.stopPropagation();
                 setCurrentImageIndex(
                   (currentImageIndex - 1 + parsedData.images.length) %
-                  parsedData.images.length
+                    parsedData.images.length
                 );
               }}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4"
