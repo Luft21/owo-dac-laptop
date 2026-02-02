@@ -20,6 +20,7 @@ export interface ExtractedData {
     history: ApprovalLog[];
     extractedId: string;
     resi: string;
+    sentDate?: string;
 }
 
 // Helper to parse HTML
@@ -109,6 +110,30 @@ export const parseHtmlData = (html: string, initialExtractedId: string): Extract
         });
     }
 
+    // Parse Sent Date
+    // Format "29 Januari 2026 13:45"
+    let sentDate: string | undefined;
+    const sentHistory = logs.find(log => log.status.toLowerCase().includes("terkirim"));
+    if (sentHistory && sentHistory.date) {
+        const parts = sentHistory.date.split(" ");
+        if (parts.length >= 3) {
+            const day = parts[0].padStart(2, "0");
+            const monthName = parts[1].toLowerCase();
+            const year = parts[2];
+
+            const months = [
+                "januari", "februari", "maret", "april", "mei", "juni",
+                "juli", "agustus", "september", "oktober", "november", "desember"
+            ];
+            const monthIndex = months.indexOf(monthName);
+
+            if (monthIndex >= 0) {
+                const month = String(monthIndex + 1).padStart(2, "0");
+                sentDate = `${year}-${month}-${day}`;
+            }
+        }
+    }
+
     return {
         school,
         item,
@@ -116,5 +141,6 @@ export const parseHtmlData = (html: string, initialExtractedId: string): Extract
         history: logs,
         extractedId: htmlId || initialExtractedId,
         resi: resi || "-",
+        sentDate
     };
 };

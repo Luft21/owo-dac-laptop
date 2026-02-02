@@ -292,6 +292,9 @@ export default function Home() {
     if (prefetchedData && prefetchedData.item.serial_number === item.serial_number) {
       console.log("Using Prefetched Data!");
       setParsedData(prefetchedData);
+      if (prefetchedData.sentDate) {
+        setVerificationDate(prefetchedData.sentDate);
+      }
       setDetailLoading(false);
       setSnBapp(item.serial_number || "");
       setPrefetchedData(null); // Consume it
@@ -309,6 +312,9 @@ export default function Home() {
       if (data) {
         setCurrentExtractedId(data.extractedId);
         setParsedData(data);
+        if (data.sentDate) {
+          setVerificationDate(data.sentDate);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -494,9 +500,9 @@ export default function Home() {
       // Otherwise use manual input.
       const barcodeSnStatus = capturedForm["O"];
       let finalSnBapp = capturedSnBapp;
-      if (barcodeSnStatus === "Ada" || barcodeSnStatus === "Sesuai") {
-        finalSnBapp = capturedItem.serial_number;
-      }
+      // if (barcodeSnStatus === "Ada" || barcodeSnStatus === "Sesuai") {
+      //   finalSnBapp = capturedItem.serial_number;
+      // }
 
       const payload: Record<string, string> = {
         id_user: capturedId,
@@ -1044,6 +1050,7 @@ export default function Home() {
           enableManualNote={enableManualNote}
           setEnableManualNote={setEnableManualNote}
           transientDisabled={isTransientDisabled}
+          originalSn={sheetData[currentTaskIndex]?.serial_number}
         />
       </div>
 
