@@ -7,7 +7,8 @@ import Sidebar, {
 } from "@/components/Sidebar";
 import { parseHtmlData, ExtractedData, EvaluationField } from "@/components/HtmlParser";
 import StickyInfoBox from "@/components/StickyInfoBox";
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
+import ProcessStatusLight from "@/components/ProcessStatusLight";
 
 const parseDateToInputFormat = (dateStr: string): string | null => {
   if (!dateStr || dateStr === "-" || dateStr === "") return null;
@@ -74,29 +75,40 @@ export default function Home() {
   const [selectedSn, setSelectedSn] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [parsedData, setParsedData] = useState<ExtractedData | null>(null);
-  const [prefetchedData, setPrefetchedData] = useState<ExtractedData | null>(null); // New Prefetch State
-  const [isTransientDisabled, setIsTransientDisabled] = useState(false); // New Debounce State
-
-  const [currentExtractedId, setCurrentExtractedId] = useState<string | null>(
-    null,
-  );
+  const [prefetchedData, setPrefetchedData] = useState<ExtractedData | null>(null);
+  const [isTransientDisabled, setIsTransientDisabled] = useState(false);
+  const [currentExtractedId, setCurrentExtractedId] = useState<string | null>(null);
   const [rawDataHtml, setRawDataHtml] = useState<string>("");
 
   // Form State
   const [evaluationForm, setEvaluationForm] = useState(defaultEvaluationValues);
   const [sidebarOptions, setSidebarOptions] = useState<EvaluationField[]>([]);
+  const [defaultSidebarOptions, setDefaultSidebarOptions] = useState<EvaluationField[]>([]);
   const [customReason, setCustomReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [snBapp, setSnBapp] = useState("");
 
   // Sidebar Layout State
-  const [sidebarPosition, setSidebarPosition] = useState<"left" | "right">(
-    "left",
-  );
+  const [sidebarPosition, setSidebarPosition] = useState<"left" | "right">("left");
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [manualNote, setManualNote] = useState("");
   const [enableManualNote, setEnableManualNote] = useState(false); // Default OFF
   const [pendingApprovalData, setPendingApprovalData] = useState<any>(null);
+
+  // Auth Usernames
+  const [dacUsername, setDacUsername] = useState("");
+  const [dataSourceUsername, setDataSourceUsername] = useState("");
+
+  // Status Light & Retry State
+  const [processingStatus, setProcessingStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
+  const [failedStage, setFailedStage] = useState<"none" | "submit" | "save-approval">("none");
+  const [retryPayloads, setRetryPayloads] = useState<{
+    submitPayload?: any;
+    approvalPayload?: any;
+    item?: any;
+    currentParsedData?: ExtractedData;
+  }>({});
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const storedPos = localStorage.getItem("sidebar_layout");
@@ -112,15 +124,82 @@ export default function Home() {
   const [id, setId] = useState("");
 
   // Image Viewer State
-  const [currentImageIndex, setCurrentImageIndex] = useState<number | null>(
-    null,
-  );
+  const [currentImageIndex, setCurrentImageIndex] = useState<number | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
 
   // Verification Date
   const [verificationDate, setVerificationDate] = useState(
     new Date().toISOString().split("T")[0],
   );
+
+  // Datadik State
+  const [datadikData, setDatadikData] = useState<{
+    kepsek: string | null;
+    guruList: any[];
+    isLoading: boolean;
+  }>({ kepsek: null, guruList: [], isLoading: false });
+  const datadikCache = useRef<Map<string, any>>(new Map());
+
+  const formatGuruList = (data: any) => {
+    let list = data.guruLain || [];
+    if (data.namaKepsek) {
+      list = [{ nama: data.namaKepsek, jabatan: "Kepala Sekolah" }, ...list];
+    }
+    return list;
+  };
+
+  const fetchDatadik = async (npsn: string, forceRefetch = false) => {
+    if (!npsn || npsn === "-") {
+      setDatadikData({ kepsek: null, guruList: [], isLoading: false });
+      return;
+    }
+
+    if (!forceRefetch && datadikCache.current.has(npsn)) {
+      const cached = datadikCache.current.get(npsn);
+      setDatadikData({
+        kepsek: cached.namaKepsek || "-",
+        guruList: formatGuruList(cached),
+        isLoading: false,
+      });
+      return;
+    }
+
+    if (forceRefetch) {
+      setDatadikData((prev) => ({ ...prev, isLoading: true }));
+    } else {
+      setDatadikData({ kepsek: null, guruList: [], isLoading: true });
+    }
+
+    try {
+      const res = await fetch(`/api/fetch-school-data?npsn=${npsn}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (data) {
+        datadikCache.current.set(npsn, data);
+        setDatadikData({
+          kepsek: data.namaKepsek || "-",
+          guruList: formatGuruList(data),
+          isLoading: false,
+        });
+      }
+    } catch (e) {
+      console.error("Error fetching datadik:", e);
+      setDatadikData({ kepsek: null, guruList: [], isLoading: false });
+    }
+  };
+
+  const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
+
+  // Transform reset handled via key={currentImageIndex} on component
+  // useEffect removed to avoid conflict/redundancy
+
+  useEffect(() => {
+    if (parsedData?.school?.npsn) {
+      fetchDatadik(parsedData.school.npsn);
+    }
+  }, [parsedData?.school?.npsn]);
 
   useEffect(() => {
     // Check localStorage for BACKWARD COMPATIBILITY
@@ -147,7 +226,7 @@ export default function Home() {
             if (data.success && data.cookie) {
               // Extract cookie
               let sessionValue = "";
-              const match = data.cookie.match(/ci_session=([^;]+)/);
+              const match = data.cookie.match(/(?:token|ci_session)=([^;]+)/);
               if (match && match[1]) {
                 sessionValue = match[1];
               } else {
@@ -164,9 +243,6 @@ export default function Home() {
           console.error(`Failed to auto-refresh ${type} session`, e);
         }
       } else {
-        // Fallback: check if session token exists (manually set or from older login)
-        // If token exists, we consider them authenticated for now, but ideally we want to refresh.
-        // If no credentials strictly required, we just check existence.
         if (localStorage.getItem(`${type}_session`)) {
           if (type === "dac") setDacAuthenticated(true);
           if (type === "datasource") setDataSourceAuthenticated(true);
@@ -174,29 +250,39 @@ export default function Home() {
       }
     };
 
-    // Execute concurrently
     Promise.all([refreshSession("dac"), refreshSession("datasource")]).finally(
       () => {
         setIsLoading(false);
+         // Load Usernames
+        const dacCache = localStorage.getItem("login_cache_dac");
+        if (dacCache) {
+          try {
+            const { username } = JSON.parse(dacCache);
+            setDacUsername(username || "");
+          } catch (e) { }
+        }
+        const dsCache = localStorage.getItem("login_cache_datasource");
+        if (dsCache) {
+          try {
+            const { username } = JSON.parse(dsCache);
+            setDataSourceUsername(username || "");
+          } catch (e) { }
+        }
       },
     );
   }, []);
 
-  // Fetch Data when authenticated
   useEffect(() => {
     if (dacAuthenticated && dataSourceAuthenticated) {
       fetchScrapedData();
     }
   }, [dacAuthenticated, dataSourceAuthenticated]);
 
-  // Navigate/Auto-select Logic
   useEffect(() => {
     if (sheetData.length > 0) {
       if (currentTaskIndex < sheetData.length) {
         handleSelectItem(sheetData[currentTaskIndex]);
-        // Reset Form
-        setEvaluationForm(defaultEvaluationValues); // Removed constant default
-        // Logic to reset form based on current options will be handled in useEffect or Sidebar
+        setEvaluationForm(defaultEvaluationValues);
         setCustomReason("");
         setEnableManualNote(false);
       } else {
@@ -205,25 +291,15 @@ export default function Home() {
       }
     }
 
-    // Fetch Sidebar Options if not loaded
     if (sheetData.length > 0 && sidebarOptions.length === 0) {
-      fetchSidebarOptions(); // This will also init the form
+      fetchSidebarOptions(); 
     }
-  }, [sheetData, currentTaskIndex, sidebarOptions.length]); // added dependency
+  }, [sheetData, currentTaskIndex, sidebarOptions.length]);
 
-  // Parse HTML Effect REMOVED - Direct handling now
-  // useEffect(() => {
-  //   if (rawDataHtml && currentExtractedId) {
-  //     parseHtml(rawDataHtml, currentExtractedId);
-  //   }
-  // }, [rawDataHtml, currentExtractedId]);
-
-  // Prefetch Effect
   useEffect(() => {
     const prefetchNext = async () => {
       if (sheetData.length > 0 && currentTaskIndex + 1 < sheetData.length) {
         const nextItem = sheetData[currentTaskIndex + 1];
-        // Avoid re-fetching if we already have it
         if (prefetchedData && prefetchedData.item.serial_number === nextItem.serial_number) return;
 
         console.log("Prefetching next item:", nextItem.serial_number);
@@ -232,14 +308,20 @@ export default function Home() {
           const result = await fetchItemFromApi(nextItem, session);
           if (result) {
             setPrefetchedData(result);
-
-            // Explicit Image Preloading
             if (result.images && result.images.length > 0) {
-              console.log(`Preloading ${result.images.length} images...`);
               result.images.forEach((img) => {
                 const i = new Image();
                 i.src = img.src;
               });
+            }
+            // Also prefetch datadik
+            if (result.school.npsn && !datadikCache.current.has(result.school.npsn)) {
+               fetch(`/api/fetch-school-data?npsn=${result.school.npsn}`, { method: "POST" })
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data) datadikCache.current.set(result.school.npsn, data);
+                })
+                .catch((e) => console.error("Prefetch Datadik Error", e));
             }
           }
         } catch (e) {
@@ -248,20 +330,16 @@ export default function Home() {
       }
     };
 
-    // Delay prefetch slightly to prioritize current render
     const timer = setTimeout(prefetchNext, 200);
     return () => clearTimeout(timer);
   }, [currentTaskIndex, sheetData, prefetchedData]);
 
-  // Debug: Log ID when it changes
   useEffect(() => {
     console.log("Current ID State Updated:", id);
   }, [id]);
 
   const fetchScrapedData = async () => {
     const dsSession = localStorage.getItem("datasource_session");
-    // We can filter by username/verifikator if needed, but for now grab all or server filters
-    // const username = localStorage.getItem('username');
 
     if (!dsSession) return;
 
@@ -275,7 +353,6 @@ export default function Home() {
       });
       const json = await res.json();
       if (json.success) {
-        // Sort by Date (optional) or just use as is
         const filtered = json.data.filter((item: any) => item.type === "DAC" && item.status === "PROSES");
 
         if (
@@ -291,6 +368,27 @@ export default function Home() {
       }
     } catch (e) {
       console.error("Error fetching scraped data:", e);
+    }
+  };
+
+
+
+  const nextImage = () => {
+    if (parsedData && parsedData.images.length > 0) {
+      setCurrentImageIndex((prev) =>
+        prev === null ? 0 : (prev + 1) % parsedData.images.length,
+      );
+      setImageRotation(0);
+    }
+  };
+
+  const prevImage = () => {
+    if (parsedData && parsedData.images.length > 0) {
+      setCurrentImageIndex((prev) => {
+        if (prev === null) return 0;
+        return (prev - 1 + parsedData.images.length) % parsedData.images.length;
+      });
+      setImageRotation(0);
     }
   };
 
@@ -318,7 +416,9 @@ export default function Home() {
         const detailJson = await detailRes.json();
 
         if (detailJson.html) {
-          return parseHtmlData(detailJson.html, targetId);
+          // Pass bapp_id if available in summary
+          const bappId = detailJson.data?.summary?.bapp_id;
+          return parseHtmlData(detailJson.html, targetId, bappId);
         }
       } else {
         console.log("No extracted ID found for this item");
@@ -330,59 +430,59 @@ export default function Home() {
   }
 
   const handleSelectItem = async (item: any) => {
-    // Check SN Merah / Duplicate
-    if (item.cek_sn_penyedia === "2") {
-      alert(`⚠️ PERINGATAN: Serial Number ${item.serial_number} terindikasi MERAH (GANDA/DUPLIKAT)! Harap cek kembali.`);
+  if (item.cek_sn_penyedia === "2") {
+    alert(`⚠️ PERINGATAN: Serial Number ${item.serial_number} terindikasi MERAH (GANDA/DUPLIKAT)! Harap cek kembali.`);
+  }
+
+  setIsTransientDisabled(true);
+  setTimeout(() => setIsTransientDisabled(false), 100);
+
+  setSelectedSn(item.serial_number);
+  // REMOVED CLEARING LOGIC FOR SEAMLESS TRANSITION
+  // setRawDataHtml(""); 
+  // setCurrentImageIndex(null); 
+
+  // Check Prefetch FIRST
+  if (prefetchedData && prefetchedData.item.serial_number === item.serial_number) {
+    console.log("Using Prefetched Data directly!");
+    setParsedData(prefetchedData);
+    if (prefetchedData.sentDate) {
+      setVerificationDate(prefetchedData.sentDate);
     }
-
-    // Debounce UI
-    setIsTransientDisabled(true);
-    setTimeout(() => setIsTransientDisabled(false), 100); // 100ms safety lock
-
-    setSelectedSn(item.serial_number);
-    setDetailLoading(true);
-    setRawDataHtml("");
-    // Clear previous data immediately to prevent "ghost" images from previous item
-    setParsedData(null);
-
-    // Check Prefetch
-    if (prefetchedData && prefetchedData.item.serial_number === item.serial_number) {
-      console.log("Using Prefetched Data!");
-      setParsedData(prefetchedData);
-      if (prefetchedData.sentDate) {
-        setVerificationDate(prefetchedData.sentDate);
-      }
-      setDetailLoading(false);
-      setSnBapp(item.serial_number || "");
-      setCurrentImageIndex(0); // Reset to first image
-      setImageRotation(0); // Reset rotation
-      setPrefetchedData(null); // Consume it
-      return;
-    }
-
-    setParsedData(null);
-    setCurrentExtractedId(null);
     setSnBapp(item.serial_number || "");
+    setCurrentImageIndex(0);
+    setImageRotation(0);
+    setPrefetchedData(null);
+    return;
+  }
 
-    let currentSessionId = localStorage.getItem("dac_session") || "";
+  // Fallback: Fetch Data
+  // NO LOADING STATE - completely seamless (Stale-While-Revalidate)
+  
+  setCurrentExtractedId(null);
+  setSnBapp(item.serial_number || "");
 
-    try {
-      const data = await fetchItemFromApi(item, currentSessionId);
-      if (data) {
-        setCurrentExtractedId(data.extractedId);
-        setParsedData(data);
-        if (data.sentDate) {
-          setVerificationDate(data.sentDate);
-        }
+  let currentSessionId = localStorage.getItem("dac_session");
+
+  try {
+    const data = await fetchItemFromApi(item, currentSessionId || "");
+    if (data) {
+      setCurrentExtractedId(data.extractedId);
+      setParsedData(data);
+      if (data.sentDate) {
+        setVerificationDate(data.sentDate);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setDetailLoading(false);
+      // Reset view to first image only when new data arrives
+      setCurrentImageIndex(0); 
+      setImageRotation(0);
     }
-  };
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setDetailLoading(false); // Just in case it was true somehow
+  }
+};
 
-  // parseHtml removed - using import
   const handleRefetch = async () => {
     if (sheetData.length > 0 && sheetData[currentTaskIndex]) {
       const item = sheetData[currentTaskIndex];
@@ -401,10 +501,9 @@ export default function Home() {
 
   const fetchSidebarOptions = async () => {
     if (sheetData.length === 0) return;
-    const item = sheetData[0]; // Use first item to scrape options
+    const item = sheetData[0];
     const dsSession = localStorage.getItem("datasource_session");
 
-    // We need action_id to fetch the form
     if (!item.action_id || !dsSession) {
       console.warn("Missing action_id or session for fetching sidebar options");
       return;
@@ -453,11 +552,12 @@ export default function Home() {
     const newOptions: EvaluationField[] = [];
     const newDefaults: Record<string, string> = {};
 
+    const rawOptionsMap: Record<string, string[]> = {};
+
     fieldMapping.forEach((field) => {
       const select = doc.querySelector(`select[name="${field.name}"]`);
       const opts: string[] = [];
       if (select) {
-        // Find optgroups/options. The dump shows options inside optgroup
         const options = select.querySelectorAll("option");
         options.forEach((opt) => {
           const val = opt.value;
@@ -466,16 +566,42 @@ export default function Home() {
           }
         });
       }
+      rawOptionsMap[field.id] = opts;
+    });
 
-      // Fallback if no options found? Or maybe keep empty?
-      if (opts.length > 0) {
-        newOptions.push({ ...field, options: opts });
-        newDefaults[field.id] = opts[0];
+    // 2. Calculate Intersection for Q and R
+    const optionsQ = rawOptionsMap["Q"] || [];
+    const optionsR = rawOptionsMap["R"] || [];
+    const restQ = optionsQ.length > 0 ? optionsQ.slice(1) : [];
+    const restR = optionsR.length > 0 ? optionsR.slice(1) : [];
+    const commonOptions = restQ.filter(q => restR.includes(q));
+
+     fieldMapping.forEach((field) => {
+      // 1. Prepare Filtered/Sorted Options (Existing Logic)
+      let finalOpts = rawOptionsMap[field.id] || [];
+
+      // SORTING LOGIC for BAPP HAL 1 (Q) & BAPP HAL 2 (R)
+      if ((field.id === "Q" || field.id === "R") && finalOpts.length > 1) {
+        const first = finalOpts[0];
+        const rest = finalOpts.slice(1);
+
+        const commonInThis = rest.filter(o => commonOptions.includes(o));
+        const uniqueInThis = rest.filter(o => !commonOptions.includes(o));
+
+        commonInThis.sort((a, b) => a.localeCompare(b));
+        uniqueInThis.sort((a, b) => a.localeCompare(b));
+
+        finalOpts = [first, ...commonInThis, ...uniqueInThis];
+      }
+
+      if (finalOpts.length > 0) {
+        newOptions.push({ ...field, options: finalOpts });
+        newDefaults[field.id] = finalOpts[0];
       } else {
         newOptions.push({
           ...field,
           options: ["Sesuai", "Tidak Sesuai", "Tidak Ada"],
-        }); // Fallback
+        }); 
         newDefaults[field.id] = "Sesuai";
       }
     });
@@ -483,6 +609,7 @@ export default function Home() {
     setSidebarOptions(newOptions);
     setEvaluationForm(newDefaults);
   };
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (currentImageIndex === null || !parsedData) return;
@@ -491,252 +618,349 @@ export default function Home() {
       if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") nextImage();
       if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") prevImage();
 
-      // Logika Rotasi 90 derajat
       if (e.key.toLowerCase() === "q") rotateImage("left");
       if (e.key.toLowerCase() === "e") rotateImage("right");
     };
 
-    const handleMouse = (e: MouseEvent) => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (currentImageIndex === null || !parsedData) return;
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
       if (currentImageIndex === null || !parsedData) return;
       if (e.button === 3) {
         e.preventDefault();
+        e.stopPropagation();
         prevImage();
       }
       if (e.button === 4) {
         e.preventDefault();
+        e.stopPropagation();
         nextImage();
       }
     };
 
     window.addEventListener("keydown", handleKey);
-    window.addEventListener("mousedown", handleMouse);
+    // Block default early on mousedown
+    window.addEventListener("mousedown", handleMouseDown);
+    // Execute logic on mouseup
+    window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
       window.removeEventListener("keydown", handleKey);
-      window.removeEventListener("mousedown", handleMouse);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [currentImageIndex, parsedData]);
 
-  const submitToDataSource = async (isApproved: boolean) => {
-    // isApproved is mostly for tracking, but the payload is built from form state
-    // Logic:
-    // If Approved -> All "Sesuai" / "Ada" / "Lengkap" / "Konsisten"
-    // If Rejected -> Those specific fields are changed.
-    // But we just send what is in `evaluationForm`.
-
-    const session = localStorage.getItem("datasource_session");
-    if (!session || !parsedData || sheetData.length === 0) return;
-
-    const currentItem = sheetData[currentTaskIndex];
-
-    // CAPTURE STATE SNAPSHOTS
-    const capturedForm = { ...evaluationForm }; // Copy object
-    const capturedSnBapp = snBapp;
-    const capturedDate = verificationDate;
-    const capturedId = id;
-    const capturedItem = { ...currentItem };
-    const capturedParsedData = { ...parsedData }; // Risky if deep object but mostly primitives and arrays. 
-    // parsedData has arrays inside (images, history), checking if we need deep clone.
-    // We only access properties, so shallow copy of parsedData is fine as long as we don't mutate.
-
-    // OPTIMISTIC UPDATE CHECK
-    // Only optimistic if we don't need manual intervention (Modal)
-    const isOptimistic = !enableManualNote;
-
-    if (!isOptimistic) {
-      setIsSubmitting(true);
-    }
-
-    if (isOptimistic) {
-      // Optimistically move to next item
-      handleSkip(false);
-    }
-
-    try {
-      // sn_bapp Logic:
-      // "BARCODE SN BAPP" is field 'O'. Check the value.
-      // If "Ada" (or "Sesuai" depending on exact option value), use system SN.
-      // Otherwise use manual input.
-      const barcodeSnStatus = capturedForm["O"];
-      let finalSnBapp = capturedSnBapp;
-      // if (barcodeSnStatus === "Ada" || barcodeSnStatus === "Sesuai") {
-      //   finalSnBapp = capturedItem.serial_number;
-      // }
-
-      const payload: Record<string, string> = {
-        id_user: capturedId,
-        npsn: capturedItem.npsn, // Use scrape data preferably
-        sn_penyedia: capturedItem.serial_number,
-        cek_sn_penyedia: capturedItem.cek_sn_penyedia,
-        id_update: capturedItem.action_id, // action_id is id_update
-        no_bapp: capturedItem.bapp, // bapp from scrape is no_bapp
-        ket_tgl_bapp: capturedForm["F"],
-        tgl_bapp: capturedDate,
-        sn_bapp: finalSnBapp,
-        geo_tag: capturedForm["G"],
-        f_papan_identitas: capturedForm["H"],
-        f_box_pic: capturedForm["I"],
-        f_unit: capturedForm["J"],
-        spesifikasi_dxdiag: capturedForm["K"],
-        bc_bapp_sn: capturedForm["O"],
-        bapp_hal1: capturedForm["Q"],
-        bapp_hal2: capturedForm["R"],
-        nm_ttd_bapp: capturedForm["S"],
-        stempel: capturedForm["T"],
-      };
-
-      const res = await fetch("/api/datasource/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payload,
-          cookie: session,
-        }),
+  const handleSubmissionProcess = async (
+    session: string,
+    payload: any,
+    item: any,
+    currentParsedData: ExtractedData,
+    shouldWaitUser: boolean,
+    isRetry: boolean = false,
+  ) => {
+    if (!isRetry) {
+      setProcessingStatus("processing");
+      setFailedStage("none");
+      setErrorMessage("");
+      setRetryPayloads({
+        submitPayload: payload,
+        item: item,
+        currentParsedData: currentParsedData,
       });
+    } else {
+      setProcessingStatus("processing");
+      setErrorMessage("");
+    }
 
-      const json = await res.json();
-      if (json.success) {
-        console.log("Submitted successfully");
+    // --- OPTIMISTIC UI UPDATE ---
+    // If we don't need user intervention (manual note), move to next item IMMEDIATELY
+    // This removes the "waiting" feeling. The status light handles the feedback.
+    const isOptimistic = !shouldWaitUser && !isRetry;
+    if (isOptimistic) {
+        handleSkip(false);
+    }
+    // ----------------------------
 
-        let finalNote = "";
+    let attempt = 0;
+    let submitSuccess = false;
 
-        // If Rejected, fetch reason from view_form
+    // Cek apakah kita melewati tahap submit (jika retry spesifik di tahap approval)
+    const skipSubmit = isRetry && failedStage === "save-approval";
+
+    if (!skipSubmit) {
+      while (true) {
+        attempt++;
+
+        if (attempt > 3) {
+          console.error("Max retries reached for submit");
+          setProcessingStatus("error");
+          setFailedStage("submit");
+          setErrorMessage("Gagal submit ke datasource setelah 3 percobaan");
+          return;
+        }
+
         try {
-          const viewRes = await fetch("/api/datasource/view-form", {
+          const res = await fetch("/api/datasource/submit", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: capturedItem.action_id,
-              cookie: session,
-            }),
+            body: JSON.stringify({ payload, cookie: session }),
           });
-          const viewJson = await viewRes.json();
-          if (viewJson.success && viewJson.html) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(viewJson.html, "text/html");
 
-            // Strategy 1: Look for textarea with name="description" (Most likely location based on provided HTML)
-            const descInput = doc.querySelector(
-              'textarea[name="description"]',
-            ) as HTMLTextAreaElement;
-            if (descInput) {
-              finalNote = descInput.value || descInput.textContent || "";
+          const json = await res.json();
+
+          if (json.success) {
+             const cachedData = localStorage.getItem("cached_scraped_data");
+            if (cachedData) {
+              try {
+                let parsedCache = JSON.parse(cachedData);
+                const indexToRemove = parsedCache.findIndex(
+                  (c: any) =>
+                    c.npsn === item.npsn && c.no_bapp === item.no_bapp,
+                );
+
+                if (indexToRemove !== -1) {
+                  parsedCache.splice(indexToRemove, 1);
+                  localStorage.setItem(
+                    "cached_scraped_data",
+                    JSON.stringify(parsedCache),
+                  );
+                }
+              } catch (e) {
+                console.error("Gagal update cache lokal setelah submit", e);
+              }
             }
 
-            // Strategy 2
-            const alerts = Array.from(
-              doc.querySelectorAll(".alert.alert-danger"),
+            console.log(
+              `Submitted ${item.npsn} (${shouldWaitUser ? "Manual Note" : "Background"})`,
             );
-            const isPihakPertamaError = alerts.some((alert) =>
+            submitSuccess = true;
+            break; 
+          } else {
+            console.error(`Submit Failed (Attempt ${attempt}):`, json.message);
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+        } catch (e) {
+          console.error(`Submit Process Error (Attempt ${attempt}):`, e);
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          continue;
+        }
+      }
+    } else {
+      submitSuccess = true;
+    }
+
+    if (!submitSuccess) return;
+
+    try {
+      let finalNote = "";
+      try {
+        const viewRes = await fetch("/api/datasource/view-form", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: item.action_id, cookie: session }),
+        });
+        const viewJson = await viewRes.json();
+        if (viewJson.success && viewJson.html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(viewJson.html, "text/html");
+          const descInput = doc.querySelector(
+            'textarea[name="description"]',
+          ) as HTMLTextAreaElement;
+          if (descInput) {
+            finalNote = descInput.value || descInput.textContent || "";
+          }
+          
+           // Check for alerts Pihak Pertama
+          const alerts = Array.from(doc.querySelectorAll(".alert.alert-danger"));
+           const isPihakPertamaError = alerts.some((alert) =>
               /Pihak pertama/i.test(alert.textContent || ""),
             );
 
             if (isPihakPertamaError) {
-              const pihakPertamaNote =
-                "(1AN) Pihak pertama hanya boleh dari kepala sekolah/wakil kepala sekolah/guru/pengajar/operator sekolah";
-
-              // Gabungkan jika finalNote sudah ada isinya, jika tidak langsung set
+              const pihakPertamaNote = "(1AN) Pihak pertama hanya boleh dari kepala sekolah/wakil kepala sekolah/guru/pengajar/operator sekolah";
               if (finalNote.length > 0) {
-                // Menambahkan spasi atau baris baru sebagai pemisah
                 finalNote = `${finalNote} ${pihakPertamaNote}`;
               } else {
                 finalNote = pihakPertamaNote;
               }
             }
-
-            console.log(
-              "Parsed Rejection Note:",
-              finalNote,
-              "and status",
-              finalNote.length > 0 ? "Rejected" : "Approved",
-            );
-          }
-        } catch (err) {
-          console.error("Error fetching view form", err);
         }
-
-        // Call save-approval (DAC)
-        // status: 2 = Terima, 3 = Tolak
-
-        // RE-LOGIN DAC LOGIC (Auto-Refresh Session)
-        let currentDacSession = localStorage.getItem("dac_session");
-        const storedDac = localStorage.getItem("login_cache_dac");
-
-        if (storedDac) {
-          try {
-            const { username: dacUser, password: dacPass } =
-              JSON.parse(storedDac);
-            if (dacUser && dacPass) {
-              // Silently refresh session
-              const loginRes = await fetch("/api/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  username: dacUser,
-                  password: dacPass,
-                  type: "dac",
-                }),
-              });
-              const loginJson = await loginRes.json();
-              if (loginJson.success && loginJson.cookie) {
-                // Extract cookie value if needed, similar to Login.tsx
-                let newSession = loginJson.cookie;
-                const match = newSession.match(/ci_session=([^;]+)/);
-                if (match && match[1]) {
-                  newSession = match[1];
-                } else {
-                  newSession = loginJson.cookie; // Fallback
-                }
-
-                localStorage.setItem("dac_session", newSession);
-                currentDacSession = newSession;
-                console.log("DAC Session Refreshed automatically before save");
-              }
-            }
-          } catch (ignore) {
-            console.warn(
-              "Failed to auto-refresh DAC session before save, trying with existing one",
-            );
-          }
-        }
-
-        if (currentDacSession && capturedParsedData.extractedId) {
-          // Di dalam submitToDataSource setelah finalNote didapatkan:
-          console.log("Parsed Rejection Note:", finalNote);
-
-          const approvalPayload = {
-            status: finalNote.length > 0 ? 3 : 2,
-            id: capturedParsedData.extractedId,
-            npsn: capturedParsedData.school.npsn,
-            resi: capturedParsedData.resi,
-            note: finalNote,
-            session_id: currentDacSession,
-          };
-
-          if (enableManualNote) {
-            // INTERUPSI: Simpan data dan tampilkan Modal
-            setPendingApprovalData(approvalPayload);
-            setManualNote(finalNote); // Isi textarea modal dengan alasan otomatis
-            setIsSubmitting(false); // Enable buttons for Modal interaction
-            setShowNoteModal(true);
-          } else {
-            // FLOW LAMA: Langsung jalankan
-            await executeSaveApproval(approvalPayload);
-            setIsSubmitting(false);
-          }
-        }
-      } else {
-        console.error("Submit failed", json.message);
-        alert(`Gagal submit: ${json.message}`);
-        setIsSubmitting(false);
+      } catch (err) {
+        console.error("Error fetching view form", err);
       }
-    } catch (e) {
-      console.error("Submit error", e);
-      alert("Terjadi kesalahan saat submit.");
-      setIsSubmitting(false);
+
+      let currentDacSession = localStorage.getItem("dac_session");
+      const storedDac = localStorage.getItem("login_cache_dac");
+      if (storedDac) {
+        try {
+          const { username: dacUser, password: dacPass } =
+            JSON.parse(storedDac);
+          const loginRes = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: dacUser,
+              password: dacPass,
+              type: "dac",
+            }),
+          });
+          const loginJson = await loginRes.json();
+          if (loginJson.success) {
+            let pureToken = loginJson.data?.token;
+             if (!pureToken && loginJson.cookie) {
+              const match = loginJson.cookie.match(/(?:token|ci_session)=([^;]+)/);
+              pureToken = match ? match[1] : loginJson.cookie;
+            }
+            if (pureToken) {
+              localStorage.setItem("dac_session", pureToken);
+              currentDacSession = pureToken;
+            }
+          }
+        } catch (ignore) { }
+      }
+
+      if (currentDacSession && currentParsedData.extractedId) {
+        const approvalPayload = {
+          status: finalNote.length > 0 ? 3 : 2, // 3 = Tolak, 2 = Terima
+          id: currentParsedData.extractedId,
+          npsn: currentParsedData.school.npsn,
+          resi: currentParsedData.resi,
+          note: finalNote,
+          session_id: currentDacSession,
+          bapp_id: currentParsedData.bapp_id || "", 
+          // bapp_date: formatToDacISO(verificationDate) // Not used in DAC save-approval logic usually unless updated route, but passing note/status/id is simpler
+        };
+
+        setRetryPayloads((prev) => ({ ...prev, approvalPayload }));
+
+        if (shouldWaitUser) {
+          setPendingApprovalData(approvalPayload);
+          setManualNote(finalNote);
+          setShowNoteModal(true);
+          setProcessingStatus("idle");
+        } else {
+          let saveAttempt = 0;
+          while (true) {
+            saveAttempt++;
+            if (saveAttempt > 3)
+              throw new Error("Max retries for Save Approval");
+
+            const saveRes = await fetch("/api/save-approval", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(approvalPayload),
+            });
+
+            if (saveRes.ok) break;
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+
+          setProcessingStatus("success");
+          setTimeout(() => setProcessingStatus("idle"), 3000);
+          
+          if (!isOptimistic) {
+             handleSkip(false); // Only skip if not already skipped optimistically
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error in post-submit logic:", err);
+      setProcessingStatus("error");
+      setFailedStage("save-approval");
+      setErrorMessage("Gagal memproses approval setelah submit");
     }
   };
+
+  const handleTerima = async () => {
+    // await submitToDataSource(true);
+    await prepareAndSubmit(true);
+  };
+  const handleTolak = async () => {
+    // await submitToDataSource(false);
+    await prepareAndSubmit(false);
+  };
+
+  const prepareAndSubmit = async (isApproved: boolean) => {
+    const session = localStorage.getItem("datasource_session");
+    if (!session || !parsedData || sheetData.length === 0) return;
+
+    const currentItem = sheetData[currentTaskIndex];
+    if(isSubmitting) return;
+
+    // CAPTURE STATE SNAPSHOTS
+    const capturedForm = { ...evaluationForm }; 
+    const capturedSnBapp = snBapp;
+    const capturedDate = verificationDate;
+    const capturedId = id;
+    const capturedItem = { ...currentItem };
+    const capturedParsedData = { ...parsedData };
+
+    const barcodeSnStatus = capturedForm["O"];
+    let finalSnBapp = capturedSnBapp;
+    // logic in component handles setSnBapp
+
+    const payload: Record<string, string> = {
+      id_user: capturedId,
+      npsn: capturedItem.npsn, 
+      sn_penyedia: capturedItem.serial_number,
+      cek_sn_penyedia: capturedItem.cek_sn_penyedia,
+      id_update: capturedItem.action_id, 
+      no_bapp: capturedItem.bapp, 
+      ket_tgl_bapp: capturedForm["F"],
+      tgl_bapp: capturedDate,
+      sn_bapp: finalSnBapp,
+      geo_tag: capturedForm["G"],
+      f_papan_identitas: capturedForm["H"],
+      f_box_pic: capturedForm["I"],
+      f_unit: capturedForm["J"],
+      spesifikasi_dxdiag: capturedForm["K"],
+      bc_bapp_sn: capturedForm["O"],
+      bapp_hal1: capturedForm["Q"],
+      bapp_hal2: capturedForm["R"],
+      nm_ttd_bapp: capturedForm["S"],
+      stempel: capturedForm["T"],
+    };
+
+    // Determine strict wait
+    const shouldWaitUser = enableManualNote;
+
+    await handleSubmissionProcess(session, payload, capturedItem, capturedParsedData, shouldWaitUser);
+  }
+
+  const handleRetry = async () => {
+    if (processingStatus !== "error") return;
+    const session = localStorage.getItem("datasource_session");
+    if (!session || !retryPayloads.item) return;
+
+    await handleSubmissionProcess(
+        session,
+        retryPayloads.submitPayload,
+        retryPayloads.item,
+        retryPayloads.currentParsedData!,
+        false, // retry usually implies we just want to push it through
+        true
+    );
+  };
+
+  const handleSkip = (skipped: boolean) => {
+    setIsTransientDisabled(true);
+    setCurrentTaskIndex((prev) => prev + 1);
+  };
+
+  const rotateImage = (dir: "left" | "right") =>
+    setImageRotation((p) => (dir === "right" ? p + 90 : p - 90));
+
+
   const executeSaveApproval = async (payload: any) => {
+      // Helper for manual modal
     try {
       const res = await fetch("/api/save-approval", {
         method: "POST",
@@ -756,20 +980,19 @@ export default function Home() {
 
     const updatedPayload = {
       ...pendingApprovalData,
-      note: manualNote, // Gunakan catatan yang sudah diedit user
+      note: manualNote, 
     };
 
     await executeSaveApproval(updatedPayload);
     setShowNoteModal(false);
     setPendingApprovalData(null);
-    handleSkip(false); // Pindah ke task berikutnya setelah sukses
+    handleSkip(false); 
   };
-  // Effect untuk mengecek Double Data (NPSN Ganda)
+
+
   useEffect(() => {
     const checkDoubleData = async () => {
-      // Pastikan parsedData sudah ada dan memiliki NPSN
       if (!parsedData?.school?.npsn) return;
-
       const currentSessionId = localStorage.getItem("dac_session");
       if (!currentSessionId) return;
 
@@ -778,15 +1001,13 @@ export default function Home() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            term: parsedData.school.npsn, // Mengirim NPSN sebagai term
+            term: parsedData.school.npsn, 
             session_id: currentSessionId,
           }),
         });
 
         const json = await res.json();
-
         if (json.success && Array.isArray(json.data)) {
-          // Jika data yang dikembalikan lebih dari 1, tampilkan alert
           if (json.data.length > 1) {
             const snList = json.data
               .map((d: any) => d.serial_number)
@@ -803,11 +1024,9 @@ export default function Home() {
         console.error("Gagal mengecek double data:", err);
       }
     };
-
     checkDoubleData();
-  }, [parsedData?.school?.npsn]); // Hanya berjalan ketika NPSN pada parsedData berubah
+  }, [parsedData?.school?.npsn]);
 
-  // Auto-populate Date from Shipping History
   useEffect(() => {
     if (parsedData?.shipping?.firstLogDate) {
       const detectedDate = parseDateToInputFormat(parsedData.shipping.firstLogDate);
@@ -818,93 +1037,7 @@ export default function Home() {
     }
   }, [parsedData]);
 
-  // Effect untuk Keyboard dan Mouse Macro di Image Viewer
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (currentImageIndex === null || !parsedData) return;
-
-      // ... logika keyboard yang sudah ada (Esc, Panah, Q, E) ...
-      if (e.key === "ArrowRight") nextImage();
-      if (e.key === "ArrowLeft") prevImage();
-      if (e.key.toLowerCase() === "q") rotateImage("left");
-      if (e.key.toLowerCase() === "e") rotateImage("right");
-    };
-
-    // LOGIKA MOUSE MACRO (Tombol Samping)
-    const handleMouse = (e: MouseEvent) => {
-      if (currentImageIndex === null || !parsedData) return;
-
-      // Tombol 3 biasanya 'Back' (Macro Down), Tombol 4 biasanya 'Forward' (Macro Up)
-      // Beberapa mouse mendeteksi button 3 dan 4 sebagai tombol navigasi
-      if (e.button === 3) {
-        // Mouse Back / Down
-        e.preventDefault(); // Mencegah browser kembali ke halaman sebelumnya
-        prevImage();
-      } else if (e.button === 4) {
-        // Mouse Forward / Up
-        e.preventDefault(); // Mencegah browser maju ke halaman berikutnya
-        nextImage();
-      }
-    };
-
-    window.addEventListener("keydown", handleKey);
-    window.addEventListener("mousedown", handleMouse); // Tambahkan listener mouse
-
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-      window.removeEventListener("mousedown", handleMouse);
-    };
-  }, [currentImageIndex, parsedData]);
-  // Fungsi untuk ke gambar berikutnya
-  const nextImage = () => {
-    if (parsedData) {
-      setCurrentImageIndex((p) => (p! + 1) % parsedData.images.length);
-      setImageRotation(0); // Reset rotasi saat pindah gambar
-    }
-  };
-
-  // Fungsi untuk ke gambar sebelumnya
-  const prevImage = () => {
-    if (parsedData) {
-      setCurrentImageIndex(
-        (p) => (p! - 1 + parsedData.images.length) % parsedData.images.length,
-      );
-      setImageRotation(0); // Reset rotasi saat pindah gambar
-    }
-  };
-  const handleDacLoginSuccess = (data: {
-    cookie: string;
-    username: string;
-  }) => {
-    localStorage.setItem("dac_session", data.cookie);
-    localStorage.setItem("username", data.username);
-    setDacAuthenticated(true);
-  };
-
-  const handleDataSourceLoginSuccess = (data: {
-    cookie: string;
-    username: string;
-  }) => {
-    localStorage.setItem("datasource_session", data.cookie);
-    setDataSourceAuthenticated(true);
-  };
-
-  const handleTerima = async () => {
-    await submitToDataSource(true);
-  };
-  const handleTolak = async () => {
-    // const note = customReason || 'Ditolak';
-    await submitToDataSource(false);
-  };
-  const handleSkip = (skipped: boolean) => {
-    // Gapless disable: Disable immediately when skipping to next item
-    setIsTransientDisabled(true);
-    setCurrentTaskIndex((prev) => prev + 1);
-  };
-
-  const rotateImage = (dir: "left" | "right") =>
-    setImageRotation((p) => (dir === "right" ? p + 45 : p - 45));
-
+  // Render Functions
   if (isLoading)
     return (
       <div className="flex h-screen items-center justify-center dark:text-white">
@@ -917,7 +1050,11 @@ export default function Home() {
       <Login
         title="Login DAC"
         loginType="dac"
-        onLoginSuccess={handleDacLoginSuccess}
+        onLoginSuccess={(d) => {
+             localStorage.setItem("dac_session", d.cookie);
+             localStorage.setItem("username", d.username);
+             setDacAuthenticated(true);
+        }}
       />
     );
   }
@@ -927,14 +1064,16 @@ export default function Home() {
       <Login
         title="Login ASSHAL.TECH"
         loginType="datasource"
-        onLoginSuccess={handleDataSourceLoginSuccess}
+        onLoginSuccess={(d) => {
+             localStorage.setItem("datasource_session", d.cookie);
+             setDataSourceAuthenticated(true);
+        }}
       />
     );
   }
 
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-black overflow-hidden relative">
-      {/* Main Content */}
       <div
         className={`flex-1 h-full overflow-hidden relative bg-zinc-50/50 dark:bg-zinc-900/50 ${sidebarPosition === "left" ? "order-2" : "order-1"
           }`}
@@ -973,7 +1112,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
+               <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2">
                   Data Barang
                 </h2>
@@ -1000,6 +1139,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
               {/* Log Approval Section */}
               <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2 flex items-center gap-2">
@@ -1052,6 +1192,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
               {/* Image Gallery */}
               <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
                 <div className="flex justify-between items-center mb-4 border-b dark:border-zinc-700 pb-2">
@@ -1104,8 +1245,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div
+       <div
         className={`flex-shrink-0 h-full ${sidebarPosition === "left"
           ? "order-1 border-r border-zinc-700"
           : "order-2 border-l border-zinc-700"
@@ -1116,34 +1256,82 @@ export default function Home() {
           handleTerima={handleTerima}
           handleTolak={handleTolak}
           handleSkip={handleSkip}
-          isSubmitting={isSubmitting}
+          isSubmitting={processingStatus === 'processing'}
           evaluationForm={evaluationForm}
           setEvaluationForm={setEvaluationForm}
           customReason={customReason}
           setCustomReason={setCustomReason}
           sidebarOptions={sidebarOptions}
           currentImageIndex={currentImageIndex}
-          date={verificationDate}
-          setDate={setVerificationDate}
           snBapp={snBapp}
           setSnBapp={setSnBapp}
           position={sidebarPosition}
           setPosition={handleSetSidebarPosition}
           enableManualNote={enableManualNote}
           setEnableManualNote={setEnableManualNote}
-          transientDisabled={isTransientDisabled}
-          originalSn={sheetData[currentTaskIndex]?.serial_number}
+          dacUsername={dacUsername}
+          dataSourceUsername={dataSourceUsername}
+          currentItemSn={sheetData[currentTaskIndex]?.serial_number}
+          sheetData={sheetData}
+          processingStatus={processingStatus}
+          failedStage={failedStage}
+          errorMessage={errorMessage}
+          onRetry={handleRetry}
         />
       </div>
 
-      {/* Layout for Image Viewer Modal */}
-      {
-        currentImageIndex !== null && parsedData && (
+       {/* Modal Note Manual */}
+      {showNoteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-2xl p-6 w-full max-w-lg border border-zinc-200 dark:border-zinc-700 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-lg font-bold mb-2 text-zinc-900 dark:text-white flex items-center gap-2">
+              <span className="text-amber-500">✎</span> Edit Catatan Approval
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+              Silakan sesuaikan catatan sebelum menyimpan data ke DAC.
+            </p>
+            <textarea
+              value={manualNote}
+              onChange={(e) => setManualNote(e.target.value)}
+              className="w-full h-32 p-3 border rounded-md dark:bg-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500 text-sm font-mono mb-4 resize-none"
+              autoFocus
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setPendingApprovalData(null);
+                  setProcessingStatus("idle");
+                }}
+                className="px-4 py-2 text-zinc-600 dark:text-zinc-400 font-bold hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
+                disabled={processingStatus === 'processing'}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmManualNote}
+                className="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 transition-colors shadow-lg shadow-blue-900/20"
+                disabled={processingStatus === 'processing'}
+              >
+                {processingStatus === 'processing' ? 'Menyimpan...' : 'Simpan Approval'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentImageIndex !== null && parsedData && (
           <div>
             <StickyInfoBox
               schoolData={parsedData.school}
               itemData={parsedData.item}
               history={parsedData.history}
+              date={verificationDate}
+              setDate={setVerificationDate}
+              kepsek={datadikData.kepsek}
+              guruList={datadikData.guruList}
+              isLoadingGuru={datadikData.isLoading}
+              onRefetchDatadik={() => parsedData.school.npsn && fetchDatadik(parsedData.school.npsn, true)}
             />
 
             <div
@@ -1151,9 +1339,6 @@ export default function Home() {
                 }`}
               onClick={() => setCurrentImageIndex(null)}
             >
-              {/* Sticky Info */}
-
-              {/* Toolbar */}
               <div
                 className="absolute top-4 right-4 z-[60] flex gap-2"
                 onClick={(e) => e.stopPropagation()}
@@ -1178,120 +1363,62 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Main Image Area */}
               <div
                 className="flex-1 flex items-center justify-center p-4 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
                 <TransformWrapper
-                  key={currentImageIndex + "-" + imageRotation}
+                  key={currentImageIndex} // Force remount on image change to reset zoom
+                  ref={transformRef}
                   initialScale={1}
+                  minScale={0.5}
+                  maxScale={4}
                   centerOnInit
                 >
                   <TransformComponent
-                    wrapperClass="!w-full !h-full"
-                    contentClass="!w-full !h-full flex items-center justify-center"
+                    wrapperStyle={{ width: "100%", height: "100%" }}
+                    contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
                   >
                     <img
                       src={parsedData.images[currentImageIndex].src}
-                      alt="Preview"
+                      alt={parsedData.images[currentImageIndex].title}
+                      className="max-h-full max-w-full object-contain transition-transform duration-200"
                       style={{
                         transform: `rotate(${imageRotation}deg)`,
-                        maxWidth: "90vw",
-                        maxHeight: "85vh",
-                        objectFit: "contain",
                       }}
-                      className="rounded shadow-2xl transition-transform duration-200"
                     />
                   </TransformComponent>
                 </TransformWrapper>
               </div>
 
-              {/* Navigation Arrows */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex(
-                    (currentImageIndex - 1 + parsedData.images.length) %
-                    parsedData.images.length,
-                  );
-                }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4"
+               <div
+                className="h-20 bg-black/50 overflow-x-auto whitespace-nowrap p-2 flex gap-2 justify-center"
+                onClick={(e) => e.stopPropagation()}
               >
-                ‹
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex(
-                    (currentImageIndex + 1) % parsedData.images.length,
-                  );
-                }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white text-6xl transition-colors p-4"
-              >
-                ›
-              </button>
-
-              {/* Caption */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 px-4 py-2 rounded-full text-white font-medium backdrop-blur-md">
-                {parsedData.images[currentImageIndex].title} (
-                {currentImageIndex + 1} / {parsedData.images.length})
+                {parsedData.images.map((img, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      setCurrentImageIndex(idx);
+                      setImageRotation(0);
+                    }}
+                    className={`inline-block h-full aspect-square cursor-pointer rounded overflow-hidden border-2 transition-all ${currentImageIndex === idx
+                      ? "border-yellow-500 scale-105"
+                      : "border-transparent opacity-60 hover:opacity-100"
+                      }`}
+                  >
+                    <img
+                      src={img.src}
+                      alt={img.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        )
-      }
-      {
-        showNoteModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-zinc-900 border border-zinc-700 w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
-              <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-                <h3 className="text-white font-bold">
-                  Edit Catatan Approval DAC
-                </h3>
-                <span
-                  className={`px-2 py-1 rounded text-[10px] font-bold ${pendingApprovalData?.status === 2
-                    ? "bg-green-900 text-green-400"
-                    : "bg-red-900 text-red-400"
-                    }`}
-                >
-                  {pendingApprovalData?.status === 2 ? "APPROVE" : "REJECT"}
-                </span>
-              </div>
-              <div className="p-4">
-                <label className="text-xs text-zinc-500 mb-2 block uppercase font-bold tracking-tighter">
-                  Catatan (Preview dari Source):
-                </label>
-                <textarea
-                  value={manualNote}
-                  onChange={(e) => setManualNote(e.target.value)}
-                  className="w-full h-48 bg-black border border-zinc-700 rounded p-3 text-sm text-zinc-200 focus:border-blue-500 outline-none font-mono"
-                  placeholder="Tambahkan catatan tambahan di sini..."
-                />
-              </div>
-              <div className="p-4 bg-zinc-800/50 flex gap-2">
-                <button
-                  onClick={() => {
-                    executeSaveApproval(pendingApprovalData);
-                    setShowNoteModal(false);
-                    handleSkip(false);
-                  }}
-                  className="flex-1 py-2 text-zinc-400 hover:text-white transition-colors text-sm"
-                >
-                  Lewati Edit
-                </button>
-                <button
-                  onClick={handleConfirmManualNote}
-                  className="flex-2 px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold text-sm transition-colors"
-                >
-                  SIMPAN KE DAC
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-    </div >
+        )}
+    </div>
   );
 }
 
@@ -1305,13 +1432,13 @@ function InfoItem({
   full?: boolean;
 }) {
   return (
-    <div className={`flex flex-col ${full ? "col-span-full" : ""}`}>
-      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">
+    <div className={`p-3 bg-zinc-50 dark:bg-zinc-900 rounded border border-zinc-200 dark:border-zinc-700 ${full ? "col-span-full" : ""}`}>
+      <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">
         {label}
-      </span>
-      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded border border-zinc-200 dark:border-zinc-700/50 block min-h-[38px]">
+      </div>
+      <div className="text-sm font-medium text-zinc-900 dark:text-zinc-200 truncate" title={value}>
         {value || "-"}
-      </span>
+      </div>
     </div>
   );
 }

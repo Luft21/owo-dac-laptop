@@ -34,10 +34,12 @@ export interface ExtractedData {
     extractedId: string;
     resi: string;
     sentDate?: string;
+    bapp_id?: string;
+    bapp_date?: string;
 }
 
 // Helper to parse HTML
-export const parseHtmlData = (html: string, initialExtractedId: string): ExtractedData => {
+export const parseHtmlData = (html: string, initialExtractedId: string, bapp_id?: string): ExtractedData => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
@@ -184,6 +186,7 @@ export const parseHtmlData = (html: string, initialExtractedId: string): Extract
         },
         extractedId: htmlId || initialExtractedId,
         resi: resi || "-",
-        sentDate
+        sentDate,
+        bapp_id
     };
 };

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Spinner from "./Spinner";
+import ProcessStatusLight from "./ProcessStatusLight";
 
 export interface EvaluationField {
   id: string;
@@ -84,13 +85,23 @@ export const errorMap: Record<string, Record<string, string>> = {
   },
 };
 
+// Mapping Index Image ke ID Field Form
+const IMAGE_FIELD_MAPPING: Record<number, string[]> = {
+  0: ["G", "H", "I"],    // Gambar 1 (Plang Sekolah/Serah Terima)
+  1: ["J"],              // Gambar 2 (Kelengkapan)
+  2: ["K"],              // Gambar 3 (DxDiag)
+  3: ["O", "Q"],         // Gambar 4 (BAPP Hal 1)
+  4: ["F", "R", "S", "T"] // Gambar 5 (BAPP Hal 2)
+  // Index 5+ akan default ke semua opsi
+};
+
 interface RadioOptionProps {
   fieldId: string;
   option: string;
   checked: boolean;
   onChange: (id: string, value: string) => void;
   disabled: boolean;
-  isPositive: boolean;
+  isDanger?: boolean;
 }
 
 const RadioOption = ({
@@ -99,18 +110,19 @@ const RadioOption = ({
   checked,
   onChange,
   disabled,
-  isPositive,
+  isDanger,
 }: RadioOptionProps) => (
   <button
     type="button"
     onClick={() => onChange(fieldId, option)}
     disabled={disabled}
     className={`px-3 py-1 text-xs rounded-full border transition-colors disabled:opacity-50 mb-1 mr-1
-      ${checked
-        ? isPositive
-          ? "bg-blue-500 border-blue-500 text-white font-semibold"
-          : "bg-red-600 border-red-600 text-white font-semibold"
-        : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
+      ${
+        checked
+          ? isDanger
+            ? "bg-red-600 border-red-600 text-white font-semibold"
+            : "bg-blue-500 border-blue-500 text-white font-semibold"
+          : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
       }`}
   >
     {option}
@@ -134,7 +146,15 @@ interface SidebarProps {
   setPosition: (pos: "left" | "right") => void;
   enableManualNote: boolean;
   setEnableManualNote: (val: boolean) => void;
-  transientDisabled?: boolean;
+  dacUsername?: string;
+  dataSourceUsername?: string;
+  currentItemSn?: string;
+  sheetData?: any[];
+  // Status Props
+  processingStatus?: "idle" | "processing" | "success" | "error";
+  failedStage?: "none" | "submit" | "save-approval";
+  errorMessage?: string;
+  onRetry?: () => void;
 }
 
 export const defaultEvaluationValues: Record<string, string> = {
@@ -163,49 +183,52 @@ export default function Sidebar({
   setCustomReason,
   sidebarOptions,
   currentImageIndex,
-  date,
-  setDate,
   snBapp,
   setSnBapp,
   position,
   setPosition,
   enableManualNote,
   setEnableManualNote,
-  transientDisabled,
-  originalSn,
+  dacUsername,
+  dataSourceUsername,
+  currentItemSn,
+  sheetData,
+  // Status Props
+  processingStatus = "idle",
+  failedStage = "none",
+  errorMessage = "",
+  onRetry,
 }: SidebarProps & {
   currentImageIndex: number | null;
-  date?: string;
-  setDate?: (date: string) => void;
   snBapp?: string;
   setSnBapp?: (val: string) => void;
-  transientDisabled?: boolean;
-  originalSn?: string;
 }) {
-  // Define Mapping here or outside component
-  const IMAGE_FIELD_MAPPING: Record<number, string[]> = {
-    0: ["G", "H", "I"],
-    1: ["J"],
-    2: ["K"],
-    3: ["O", "Q"],
-    4: ["F", "R", "S", "T"],
+  const [hidePendingCount, setHidePendingCount] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const handleSaveData = () => {
+    if (sheetData && sheetData.length > 0) {
+      localStorage.setItem("cached_scraped_data", JSON.stringify(sheetData));
+      localStorage.setItem("cached_data_timestamp", new Date().toISOString());
+      alert(`Berhasil menyimpan ${sheetData.length} data ke local storage.`);
+    } else {
+      alert("Tidak ada data untuk disimpan.");
+    }
   };
 
-  const [filterMode, setFilterMode] = useState<"specific" | "all">("specific");
+  const [viewMode, setViewMode] = useState<"button" | "dropdown">("button");
+  const [contextMode, setContextMode] = useState<"default" | "context">("default"); // Default or Context-Aware
 
-  // Auto-set filter mode when image changes
   useEffect(() => {
-    if (currentImageIndex !== null) {
-      // Only set specific if mapping exists for this index
-      if (IMAGE_FIELD_MAPPING[currentImageIndex]) {
-        setFilterMode("specific");
-      } else {
-        setFilterMode("all"); // Default to all if no mapping (e.g. image > 5)
-      }
-    } else {
-      setFilterMode("all");
+    const savedMode = localStorage.getItem("sidebarViewMode");
+    if (savedMode === "button" || savedMode === "dropdown") {
+      setViewMode(savedMode);
     }
-  }, [currentImageIndex]);
+  }, []);
+
+  const handleViewModeChange = (mode: "button" | "dropdown") => {
+    setViewMode(mode);
+    localStorage.setItem("sidebarViewMode", mode);
+  };
 
   // Auto-update reason when form changes
   useEffect(() => {
@@ -219,56 +242,44 @@ export default function Sidebar({
   }, [evaluationForm, setCustomReason]);
 
   const handleFormChange = (id: string, value: string) => {
-    const updates: Record<string, string> = { [id]: value };
+    // 1. Update state form (menggunakan functional update agar bisa memanipulasi field lain secara bersamaan)
+    setEvaluationForm((prev) => {
+      const newForm = { ...prev, [id]: value };
 
-    // Cascade Logic BAPP 1 ('Q') -> Barcode SN ('O')
-    if (id === "Q" && (value === "Tidak ada" || value === "Tidak terlihat jelas")) {
-      updates["O"] = value;
-    }
+      // LOGIKA OTOMATISASI: Jika "BAPP HAL 1" (Q) diubah
+      if (id === "Q") {
+        if (value === "Tidak ada" || value === "Tidak terlihat jelas") {
+          // Otomatis ubah "BARCODE SN BAPP" (O) mengikuti nilai Q
+          newForm["O"] = value;
 
-    // Cascade Logic BAPP 2 ('R') -> TGL ('F'), TTD ('S'), Stempel ('T')
-    if (id === "R") {
-      if (value === "Tidak ada") {
-        updates["F"] = "Tidak ada"; // Assuming option exists
-        updates["S"] = "TTD tidak ada";
-        updates["T"] = "Tidak ada";
-      } else if (value === "Tidak terlihat jelas") {
-        updates["F"] = "Tidak terlihat jelas";
-        // updates["S"] = ... // Biarkan S (TTD) tetap (User req: "biarkan saja valuenya konsisten")
-        updates["T"] = "Tidak terlihat jelas";
+          // Karena status SN menjadi "Tidak ada/jelas", set input SN menjadi "-"
+          if (setSnBapp) setSnBapp("-");
+        }
       }
-    }
 
-    setEvaluationForm((prev) => ({ ...prev, ...updates }));
+      // --- TAMBAHKAN LOGIKA BARU UNTUK BAPP HAL 2 (R) DI SINI ---
+      if (id === "R" && value === "Tidak ada") {
+        // Otomatis ubah Stempel (T) dan Tgl BAPP (F) menjadi "Tidak ada"
+        newForm["T"] = "Tidak ada";
+        newForm["F"] = "Tidak ada";
 
-    // Logic Khusus untuk Sinkronisasi SN (Triggered if 'O' changes either directly or via cascade)
-    if (updates["O"] && setSnBapp) {
-      const oValue = updates["O"];
-      if (oValue === "Tidak ada" || oValue === "Tidak terlihat jelas") {
+        // Khusus TTD BAPP (S) namanya adalah "TTD tidak ada" sesuai opsi di form
+        newForm["S"] = "TTD tidak ada";
+      }
+
+      return newForm;
+    });
+
+    // 2. LOGIKA EKSISTING: Sinkronisasi Input SN jika user mengklik langsung field "O"
+    if (id === "O" && setSnBapp) {
+      if (value === "Ada" || value === "Tidak sesuai") {
+        // Kembalikan ke Serial Number asli dari props jika "Ada" atau "Sesuai"
+        setSnBapp(currentItemSn || "");
+      } else {
+        // Set menjadi "-" untuk kondisi lainnya (Tidak ada, Tidak sesuai, dsb)
         setSnBapp("-");
-      } else if (oValue === "Ada" || oValue === "Sesuai" || oValue === "Tidak sesuai") {
-        setSnBapp(originalSn || "");
       }
     }
-  };
-
-  const handleSnChange = (val: string) => {
-    if (!setSnBapp) return;
-    setSnBapp(val);
-
-    // Logic Otomatis ganti status 'O'
-    // Kita set evaluationForm secara langsung untuk menghindari trigger handleFormChange 
-    // yang akan mereset input kembali ke originalSn saat status "Tidak sesuai" (looping conflict)
-    let newStatus = "";
-    if (val.trim() === "") {
-      newStatus = "Tidak ada";
-    } else if (val === originalSn) {
-      newStatus = "Ada"; // Atau "Sesuai"
-    } else {
-      newStatus = "Tidak sesuai";
-    }
-
-    setEvaluationForm((prev) => ({ ...prev, O: newStatus }));
   };
 
   // calculate isFormDefault based on first options
@@ -278,10 +289,7 @@ export default function Sidebar({
   });
 
   const buttonsDisabled =
-    isSubmitting ||
-    pendingCount === null ||
-    pendingCount === 0 ||
-    !!transientDisabled;
+    isSubmitting || pendingCount === null || pendingCount === 0;
 
   const mainButtonLabel = isFormDefault ? "TERIMA" : "TOLAK";
   const mainButtonColor = isFormDefault
@@ -289,151 +297,134 @@ export default function Sidebar({
     : "bg-red-600 hover:bg-red-500";
   const mainButtonAction = isFormDefault ? handleTerima : handleTolak;
 
+
+
   // Filter Logic
   const displayedOptions = sidebarOptions.filter((field) => {
-    if (currentImageIndex === null || filterMode === "all") return true;
+    // If not in full screen mode (no image index) or context is default, show everything
+    if (currentImageIndex === null || contextMode === "default") return true;
 
+    // Check mapping
     const allowedFields = IMAGE_FIELD_MAPPING[currentImageIndex];
-    if (!allowedFields) return true; // Show all if no mapping found (extra images)
+    if (allowedFields) {
+      return allowedFields.includes(field.id);
+    }
 
-    return allowedFields.includes(field.id);
+    // Default: show everything if index not mapped (e.g. index 5+)
+    return true;
   });
 
-  const [hidePendingCount, setHidePendingCount] = useState(false);
 
   return (
-    <aside className="w-96 bg-gray-800 text-white flex-shrink-0 flex flex-col p-4 h-full overflow-hidden border-r border-gray-700">
-      <div className="flex justify-between items-center border-b border-gray-700 pb-4 flex-shrink-0">
-        <h1 className="text-xl font-bold">FORM EVALUASI</h1>
-        {/* Layout Toggle */}
-        <div className="flex items-center gap-2">
-          <div className="flex bg-gray-900 p-0.5 rounded-full border border-gray-600">
-            <button
-              onClick={() => setPosition("left")}
-              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${position === "left"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-gray-500 hover:text-gray-300"
-                }`}
-
-              title="Left Layout"
-            >
-              L
-            </button>
-            <button
-              onClick={() => setPosition("right")}
-              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${position === "right"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-gray-500 hover:text-gray-300"
-                }`}
-              title="Right Layout"
-            >
-              R
-            </button>
-          </div>
-        </div>
+    <aside className="w-96 bg-gray-800 text-white flex-shrink-0 flex flex-col p-4 h-full overflow-hidden border-r border-gray-700 relative">
+      {/* Process Status Light (Moved from Page) */}
+      <div className="mb-4">
+        <ProcessStatusLight
+          status={processingStatus}
+          failedStage={failedStage}
+          errorMessage={errorMessage}
+          onRetry={onRetry || (() => { })}
+        />
       </div>
 
-      {/* Mode Switcher when Image Open */}
+      {/* Context Mode Switch - Only Visible in Full Screen Image Mode */}
       {currentImageIndex !== null && (
-        <div className="flex bg-gray-700 rounded p-1 mt-2 mb-2">
-          <button
-            onClick={() => setFilterMode("specific")}
-            className={`flex-1 py-1 text-xs rounded font-bold transition-all ${filterMode === "specific"
-              ? "bg-blue-600 text-white shadow"
-              : "text-gray-400 hover:text-gray-200"
-              }`}
+        <div className="flex bg-gray-700/50 rounded-lg p-1 mb-4 border border-gray-600">
+           <button
+            onClick={() => setContextMode("default")}
+            className={`flex-1 py-1.5 text-xs rounded-md font-bold transition-all ${
+              contextMode === "default"
+                ? "bg-gray-600 text-white shadow-sm border border-gray-500"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
           >
-            Filtered
+            Semua
           </button>
           <button
-            onClick={() => setFilterMode("all")}
-            className={`flex-1 py-1 text-xs rounded font-bold transition-all ${filterMode === "all"
-              ? "bg-blue-600 text-white shadow"
-              : "text-gray-400 hover:text-gray-200"
-              }`}
+            onClick={() => setContextMode("context")}
+            className={`flex-1 py-1.5 text-xs rounded-md font-bold transition-all ${
+              contextMode === "context"
+                ? "bg-blue-600 text-white shadow-sm border border-blue-400"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
           >
-            Default
+            Sesuai Gambar
           </button>
         </div>
       )}
 
-      {/* Date Input - Special Condition: Image Index 4 & Filtered Mode */}
-      {currentImageIndex === 4 &&
-        filterMode === "specific" &&
-        date !== undefined &&
-        setDate && (
-          <div className="mb-4 bg-gray-700 p-2 rounded border border-gray-600">
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block mb-1">
-              Tanggal Verifikasi
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              // Wheel handler logic inline or separate helper
-              onWheel={(e) => {
-                if (!date) return;
-                const currentDate = new Date(date);
-                const daysToAdd = e.deltaY > 0 ? -1 : 1;
-                currentDate.setDate(currentDate.getDate() + daysToAdd);
-                const year = currentDate.getFullYear();
-                const month = String(currentDate.getMonth() + 1).padStart(
-                  2,
-                  "0",
-                );
-                const day = String(currentDate.getDate()).padStart(2, "0");
-                setDate(`${year}-${month}-${day}`);
-              }}
-              className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm"
-            />
-          </div>
-        )}
-
       {/* SN BAPP Input - Special Condition: Image Index 3 & Filtered Mode */}
-      {currentImageIndex === 3 &&
-        filterMode === "specific" &&
-        snBapp !== undefined &&
-        setSnBapp && (
-          <div
-            className="mb-4 bg-gray-700 p-2 rounded border border-gray-600 block"
-          >
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block mb-1">
-              Input SN BAPP
-            </label>
-            <input
-              type="text"
-              value={snBapp}
-              onChange={(e) => handleSnChange(e.target.value)}
-              placeholder="Input SN if mismatch"
-              className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm font-mono placeholder-gray-500"
-            />
-          </div>
-        )}
+      {snBapp !== undefined && setSnBapp && (
+        <div
+          className={`mb-4 bg-gray-700 p-2 rounded border border-gray-600 ${
+            // Tampilkan jika value BUKAN "Ada" dan BUKAN "Sesuai"
+            evaluationForm["O"] !== "Ada" && evaluationForm["O"] !== "Sesuai"
+              ? "block"
+              : "hidden"
+            }`}
+        >
+          <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block mb-1">
+            Input SN BAPP
+          </label>
+          <input
+            type="text"
+            value={snBapp}
+            onChange={(e) => setSnBapp(e.target.value)}
+            placeholder="Input SN if mismatch"
+            className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm font-mono placeholder-gray-500"
+            onMouseEnter={(e) => e.currentTarget.focus()}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
-      <div className="flex-grow mt-4 overflow-y-auto pr-2 custom-scrollbar">
+      {/* Form Fields */}
+      <div className="flex-grow overflow-y-auto custom-scrollbar">
         {sidebarOptions.length === 0 ? (
           <div className="text-gray-400 text-sm text-center mt-10">
             Loading form options...
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
             {displayedOptions.map((field) => (
-              <div key={field.id} className="text-left text-sm">
-                <label className="font-semibold text-gray-300 mb-2 block">
+              <div key={field.id} className="text-left text-xs">
+                <label className="font-semibold text-gray-300 block">
                   {field.label}
                 </label>
                 <div className="flex flex-wrap gap-1">
-                  {field.options.map((opt, idx) => (
-                    <RadioOption
-                      key={opt}
-                      fieldId={field.id}
-                      option={opt}
-                      checked={evaluationForm[field.id] === opt}
-                      onChange={handleFormChange}
+                  {viewMode === "button" ? (
+                    field.options.map((opt) => (
+                      <RadioOption
+                        key={opt}
+                        fieldId={field.id}
+                        option={opt}
+                        checked={evaluationForm[field.id] === opt}
+                        onChange={handleFormChange}
+                        disabled={buttonsDisabled}
+                        isDanger={opt !== field.options[0]}
+                      />
+                    ))
+                  ) : (
+                    <select
+                      value={evaluationForm[field.id] || field.options[0]}
+                      onChange={(e) =>
+                        handleFormChange(field.id, e.target.value)
+                      }
                       disabled={buttonsDisabled}
-                      isPositive={idx === 0}
-                    />
-                  ))}
+                      className={`w-full rounded px-2 py-1 text-xs text-white focus:outline-none mb-1 border ${
+                        (evaluationForm[field.id] || field.options[0]) !==
+                        field.options[0]
+                          ? "bg-red-500 border-red-200"
+                          : "bg-gray-700 border-gray-600 focus:border-blue-500"
+                      }`}
+                    >
+                      {field.options.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
             ))}
@@ -441,10 +432,15 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="border-t border-gray-700 pt-4 mt-4 flex-shrink-0">
-       <div className="flex items-center gap-2 select-none">
-            <span className="text-l text-gray-400">Pending:</span>
-            <span className="text-l font-bold text-white min-w-[20px]">
+      {/* Footer Actions */}
+      <div className="border-t border-gray-700 pt-3 mt-2 flex-shrink-0">
+        {/* Compact Info Row */}
+        <div className="flex items-center justify-between mb-3 bg-gray-900/50 p-2 rounded border border-gray-700">
+          {/* Pending Count (Clickable) */}
+          {/* Pending Count (with Eye Toggle) */}
+          <div className="flex items-center gap-2 select-none">
+            <span className="text-xs text-gray-400">Pending:</span>
+            <span className="text-sm font-bold text-white min-w-[20px]">
               {hidePendingCount
                 ? "***"
                 : pendingCount !== null
@@ -491,23 +487,208 @@ export default function Sidebar({
               )}
             </button>
           </div>
-        <div className="flex items-center justify-between mb-4 bg-gray-900/50 p-2 rounded border border-gray-700">
-          <span className="text-xs font-bold text-gray-400 uppercase">
-            Edit Catatan DAC
-          </span>
-          <button
-            onClick={() => setEnableManualNote(!enableManualNote)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-              enableManualNote ? "bg-blue-600" : "bg-gray-600"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                enableManualNote ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* Edit Catatan Toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-gray-500 uppercase">
+                Edit Note:
+              </span>
+              <button
+                onClick={() => setEnableManualNote(!enableManualNote)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${enableManualNote ? "bg-blue-600" : "bg-gray-600"
+                  }`}
+              >
+                <span
+                  className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${enableManualNote ? "translate-x-5" : "translate-x-1"
+                    }`}
+                />
+              </button>
+            </div>
+
+            {/* Options Menu Button (Moved Here) */}
+            <div className="relative">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-1 hover:bg-gray-700 rounded-full transition-colors focus:outline-none text-gray-400 hover:text-white"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="12" cy="5" r="1" />
+                  <circle cx="12" cy="19" r="1" />
+                </svg>
+              </button>
+
+              {/* Options Dropdown (Opens Upwards) */}
+              {isMenuOpen && (
+                <>
+                  {/* Overlay to close menu */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMenuOpen(false)}
+                  ></div>
+                  <div className="absolute right-0 bottom-full mb-2 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 p-4">
+                    {/* User Info */}
+                    <div className="mb-4 text-xs space-y-2 border-b border-gray-700 pb-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">DAC:</span>
+                        <span className="font-mono text-gray-200">
+                          {dacUsername || "-"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-bold">SRC:</span>
+                        <span className="font-mono text-gray-200">
+                          {dataSourceUsername || "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* View Mode Toggle moved here */}
+                    <div className="mb-4">
+                      <label className="text-xs font-bold text-gray-400 block mb-2">
+                        View Input Mode
+                      </label>
+                      <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
+                        <button
+                          onClick={() => handleViewModeChange("button")}
+                          className={`flex-1 py-1 text-xs rounded transition-all ${
+                            viewMode === "button"
+                              ? "bg-blue-600 text-white"
+                              : "text-gray-400 hover:text-gray-200"
+                          }`}
+                        >
+                          Button
+                        </button>
+                        <button
+                          onClick={() => handleViewModeChange("dropdown")}
+                          className={`flex-1 py-1 text-xs rounded transition-all ${
+                            viewMode === "dropdown"
+                              ? "bg-blue-600 text-white"
+                              : "text-gray-400 hover:text-gray-200"
+                          }`}
+                        >
+                          Dropdown
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Layout Toggle */}
+                    <div className="mb-4">
+                      <label className="text-xs font-bold text-gray-400 block mb-2">
+                        Layout Position
+                      </label>
+                      <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
+                        <button
+                          onClick={() => setPosition("left")}
+                          className={`flex-1 py-1 text-xs rounded transition-all ${position === "left"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                            }`}
+                        >
+                          Left
+                        </button>
+                        <button
+                          onClick={() => setPosition("right")}
+                          className={`flex-1 py-1 text-xs rounded transition-all ${position === "right"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                            }`}
+                        >
+                          Right
+                        </button>
+                      </div>
+                    </div>
+                    {/* Tombol Simpan Data Baru */}
+                    <button
+                      onClick={handleSaveData}
+                      className="w-full mb-2 p-2 bg-blue-700/20 hover:bg-blue-900/40 text-blue-300 hover:text-blue-200 text-xs rounded border border-blue-800/50 hover:border-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                      </svg>
+                      SAVE FILTERED DATA
+                    </button>
+
+                    {/* TOMBOL BARU: RESET SAVED DATA */}
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Apakah Anda yakin ingin menghapus data yang tersimpan? Antrean akan diulang dari awal saat halaman direfresh.",
+                          )
+                        ) {
+                          localStorage.removeItem("cached_scraped_data");
+                          localStorage.removeItem("cached_data_timestamp");
+                          alert("Data tersimpan berhasil dihapus.");
+                          window.location.reload(); // Refresh untuk mengambil data segar dari API
+                        }
+                      }}
+                      className="w-full mb-2 p-2 bg-amber-700/20 hover:bg-amber-900/40 text-amber-300 hover:text-amber-200 text-xs rounded border border-amber-800/50 hover:border-amber-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                      </svg>
+                      RESET SAVED DATA
+                    </button>
+                    {/* Logout Button */}
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "Are you sure you want to logout? This will clear all local session data.",
+                          )
+                        ) {
+                          localStorage.clear();
+                          window.location.reload();
+                        }
+                      }}
+                      className="w-full p-2 bg-red-700/20 hover:bg-red-900/40 text-red-300 hover:text-red-200 text-xs rounded border border-red-800/50 hover:border-red-700 transition-colors"
+                    >
+                      LOGOUT & CLEAR DATA
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Action Buttons */}
         <div className="flex gap-2">
           <button
             onClick={() => handleSkip(true)}
@@ -528,23 +709,6 @@ export default function Sidebar({
             {isSubmitting ? <Spinner /> : mainButtonLabel}
           </button>
         </div>
-
-        {/* Logout Button */}
-        <button
-          onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to logout? This will clear all local session data.",
-              )
-            ) {
-              localStorage.clear();
-              window.location.reload();
-            }
-          }}
-          className="w-full mt-3 p-2 bg-red-700/50 hover:bg-red-900/50 text-zinc-400 hover:text-red-200 text-xs rounded border border-zinc-700 hover:border-red-800 transition-colors"
-        >
-          LOGOUT & CLEAR STORAGE
-        </button>
       </div>
     </aside>
   );
