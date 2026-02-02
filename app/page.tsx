@@ -9,6 +9,58 @@ import { parseHtmlData, ExtractedData, EvaluationField } from "@/components/Html
 import StickyInfoBox from "@/components/StickyInfoBox";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
+const parseDateToInputFormat = (dateStr: string): string | null => {
+  if (!dateStr || dateStr === "-" || dateStr === "") return null;
+
+  // Coba format langsung (e.g. YYYY-MM-DD or standard English)
+  let date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    return date.toISOString().split("T")[0];
+  }
+
+  // Mapping bulan Indonesia/Short ke English
+  const monthMap: Record<string, string> = {
+    Januari: "January",
+    Jan: "Jan",
+    Februari: "February",
+    Feb: "Feb",
+    Maret: "March",
+    Mar: "Mar",
+    April: "April",
+    Apr: "Apr",
+    Mei: "May",
+    Juni: "June",
+    Jun: "Jun",
+    Juli: "July",
+    Jul: "Jul",
+    Agustus: "August",
+    Agu: "Aug",
+    September: "September",
+    Sep: "Sep",
+    Oktober: "October",
+    Okt: "Oct",
+    November: "November",
+    Nov: "Nov",
+    Desember: "December",
+    Des: "Dec",
+  };
+
+  let cleanStr = dateStr;
+
+  // Replace nama bulan
+  Object.keys(monthMap).forEach((key) => {
+    const regex = new RegExp(`\\b${key}\\b`, 'i');
+    cleanStr = cleanStr.replace(regex, monthMap[key]);
+  });
+
+  date = new Date(cleanStr);
+  if (!isNaN(date.getTime())) {
+    return date.toISOString().split("T")[0];
+  }
+
+  return null;
+};
+
 export default function Home() {
   const [dacAuthenticated, setDacAuthenticated] = useState(false);
   const [dataSourceAuthenticated, setDataSourceAuthenticated] = useState(false);
@@ -297,6 +349,8 @@ export default function Home() {
       }
       setDetailLoading(false);
       setSnBapp(item.serial_number || "");
+      setCurrentImageIndex(0); // Reset to first image
+      setImageRotation(0); // Reset rotation
       setPrefetchedData(null); // Consume it
       return;
     }
@@ -748,6 +802,17 @@ export default function Home() {
     checkDoubleData();
   }, [parsedData?.school?.npsn]); // Hanya berjalan ketika NPSN pada parsedData berubah
 
+  // Auto-populate Date from Shipping History
+  useEffect(() => {
+    if (parsedData?.shipping?.firstLogDate) {
+      const detectedDate = parseDateToInputFormat(parsedData.shipping.firstLogDate);
+      if (detectedDate) {
+        setVerificationDate(detectedDate);
+        console.log("Auto-populated verification date:", detectedDate);
+      }
+    }
+  }, [parsedData]);
+
   // Effect untuk Keyboard dan Mouse Macro di Image Viewer
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -916,6 +981,18 @@ export default function Home() {
                     label="Serial Number"
                     value={parsedData.item.serial_number}
                   />
+                  <div className="col-span-full border-t border-dashed border-zinc-300 dark:border-zinc-700 mt-2 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+                      <InfoItem
+                        label="Update Pengiriman"
+                        value={parsedData.shipping?.firstLogDate || "-"}
+                      />
+                      <InfoItem
+                        label="Status Pengiriman"
+                        value={parsedData.shipping?.firstStatus || "-"}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               {/* Log Approval Section */}

@@ -13,11 +13,24 @@ export interface ApprovalLog {
     note: string;
 }
 
+export interface ShippingLog {
+    date: string;
+    status: string;
+    note: string;
+}
+
+export interface ShippingData {
+    logs: ShippingLog[];
+    firstLogDate: string;
+    firstStatus: string;
+}
+
 export interface ExtractedData {
     school: Record<string, string>;
     item: Record<string, string>;
     images: Array<{ src: string; title: string }>;
     history: ApprovalLog[];
+    shipping: ShippingData;
     extractedId: string;
     resi: string;
     sentDate?: string;
@@ -109,6 +122,31 @@ export const parseHtmlData = (html: string, initialExtractedId: string): Extract
             });
         });
     }
+    const shippingLogs: ShippingLog[] = [];
+    let firstLogDate = "-";
+    let firstStatus = "-";
+
+    const logShippingContainer = doc.querySelector("#logShipping .accordion-body");
+
+    if (logShippingContainer) {
+        const shipEntries = logShippingContainer.querySelectorAll(".border.rounded");
+
+        // Ambil entri pertama sebagai yang terbaru (atau 'pertama' sesuai request user)
+        if (shipEntries.length > 0) {
+            const firstEntry = shipEntries[0];
+            firstLogDate = firstEntry.querySelector(".text-muted.small")?.textContent?.trim() || "-";
+            firstStatus = firstEntry.querySelector(".badge")?.textContent?.trim() || "-";
+        }
+
+        // Opsional: Simpan semua log jika mau ditampilkan semua
+        shipEntries.forEach(entry => {
+            shippingLogs.push({
+                date: entry.querySelector(".text-muted.small")?.textContent?.trim() || "-",
+                status: entry.querySelector(".badge")?.textContent?.trim() || "-",
+                note: entry.querySelector(".fst-italic")?.textContent?.replace("Catatan:", "").trim() || ""
+            });
+        });
+    }
 
     // Parse Sent Date
     // Format "29 Januari 2026 13:45"
@@ -139,6 +177,11 @@ export const parseHtmlData = (html: string, initialExtractedId: string): Extract
         item,
         images: imgs,
         history: logs,
+        shipping: {
+            logs: shippingLogs,
+            firstLogDate,
+            firstStatus,
+        },
         extractedId: htmlId || initialExtractedId,
         resi: resi || "-",
         sentDate
