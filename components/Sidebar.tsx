@@ -90,6 +90,7 @@ interface RadioOptionProps {
   checked: boolean;
   onChange: (id: string, value: string) => void;
   disabled: boolean;
+  isPositive: boolean;
 }
 
 const RadioOption = ({
@@ -98,6 +99,7 @@ const RadioOption = ({
   checked,
   onChange,
   disabled,
+  isPositive,
 }: RadioOptionProps) => (
   <button
     type="button"
@@ -105,7 +107,9 @@ const RadioOption = ({
     disabled={disabled}
     className={`px-3 py-1 text-xs rounded-full border transition-colors disabled:opacity-50 mb-1 mr-1
       ${checked
-        ? "bg-blue-500 border-blue-500 text-white font-semibold"
+        ? isPositive
+          ? "bg-blue-500 border-blue-500 text-white font-semibold"
+          : "bg-red-600 border-red-600 text-white font-semibold"
         : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
       }`}
   >
@@ -168,6 +172,7 @@ export default function Sidebar({
   enableManualNote,
   setEnableManualNote,
   transientDisabled,
+  originalSn,
 }: SidebarProps & {
   currentImageIndex: number | null;
   date?: string;
@@ -175,6 +180,7 @@ export default function Sidebar({
   snBapp?: string;
   setSnBapp?: (val: string) => void;
   transientDisabled?: boolean;
+  originalSn?: string;
 }) {
   // Define Mapping here or outside component
   const IMAGE_FIELD_MAPPING: Record<number, string[]> = {
@@ -213,7 +219,56 @@ export default function Sidebar({
   }, [evaluationForm, setCustomReason]);
 
   const handleFormChange = (id: string, value: string) => {
-    setEvaluationForm((prev) => ({ ...prev, [id]: value }));
+    const updates: Record<string, string> = { [id]: value };
+
+    // Cascade Logic BAPP 1 ('Q') -> Barcode SN ('O')
+    if (id === "Q" && (value === "Tidak ada" || value === "Tidak terlihat jelas")) {
+      updates["O"] = value;
+    }
+
+    // Cascade Logic BAPP 2 ('R') -> TGL ('F'), TTD ('S'), Stempel ('T')
+    if (id === "R") {
+      if (value === "Tidak ada") {
+        updates["F"] = "Tidak ada"; // Assuming option exists
+        updates["S"] = "TTD tidak ada";
+        updates["T"] = "Tidak ada";
+      } else if (value === "Tidak terlihat jelas") {
+        updates["F"] = "Tidak terlihat jelas";
+        // updates["S"] = ... // Biarkan S (TTD) tetap (User req: "biarkan saja valuenya konsisten")
+        updates["T"] = "Tidak terlihat jelas";
+      }
+    }
+
+    setEvaluationForm((prev) => ({ ...prev, ...updates }));
+
+    // Logic Khusus untuk Sinkronisasi SN (Triggered if 'O' changes either directly or via cascade)
+    if (updates["O"] && setSnBapp) {
+      const oValue = updates["O"];
+      if (oValue === "Tidak ada" || oValue === "Tidak terlihat jelas") {
+        setSnBapp("-");
+      } else if (oValue === "Ada" || oValue === "Sesuai" || oValue === "Tidak sesuai") {
+        setSnBapp(originalSn || "");
+      }
+    }
+  };
+
+  const handleSnChange = (val: string) => {
+    if (!setSnBapp) return;
+    setSnBapp(val);
+
+    // Logic Otomatis ganti status 'O'
+    // Kita set evaluationForm secara langsung untuk menghindari trigger handleFormChange 
+    // yang akan mereset input kembali ke originalSn saat status "Tidak sesuai" (looping conflict)
+    let newStatus = "";
+    if (val.trim() === "") {
+      newStatus = "Tidak ada";
+    } else if (val === originalSn) {
+      newStatus = "Ada"; // Atau "Sesuai"
+    } else {
+      newStatus = "Tidak sesuai";
+    }
+
+    setEvaluationForm((prev) => ({ ...prev, O: newStatus }));
   };
 
   // calculate isFormDefault based on first options
@@ -254,8 +309,8 @@ export default function Sidebar({
             <button
               onClick={() => setPosition("left")}
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${position === "left"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-300"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-gray-500 hover:text-gray-300"
                 }`}
               title="Left Layout"
             >
@@ -264,8 +319,8 @@ export default function Sidebar({
             <button
               onClick={() => setPosition("right")}
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${position === "right"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-300"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-gray-500 hover:text-gray-300"
                 }`}
               title="Right Layout"
             >
@@ -281,8 +336,8 @@ export default function Sidebar({
           <button
             onClick={() => setFilterMode("specific")}
             className={`flex-1 py-1 text-xs rounded font-bold transition-all ${filterMode === "specific"
-                ? "bg-blue-600 text-white shadow"
-                : "text-gray-400 hover:text-gray-200"
+              ? "bg-blue-600 text-white shadow"
+              : "text-gray-400 hover:text-gray-200"
               }`}
           >
             Filtered
@@ -290,8 +345,8 @@ export default function Sidebar({
           <button
             onClick={() => setFilterMode("all")}
             className={`flex-1 py-1 text-xs rounded font-bold transition-all ${filterMode === "all"
-                ? "bg-blue-600 text-white shadow"
-                : "text-gray-400 hover:text-gray-200"
+              ? "bg-blue-600 text-white shadow"
+              : "text-gray-400 hover:text-gray-200"
               }`}
           >
             Default
@@ -337,12 +392,7 @@ export default function Sidebar({
         snBapp !== undefined &&
         setSnBapp && (
           <div
-            className={`mb-4 bg-gray-700 p-2 rounded border border-gray-600 ${
-              // Tampilkan jika value BUKAN "Ada" dan BUKAN "Sesuai"
-              evaluationForm["O"] !== "Ada" && evaluationForm["O"] !== "Sesuai"
-                ? "block"
-                : "hidden"
-              }`}
+            className="mb-4 bg-gray-700 p-2 rounded border border-gray-600 block"
           >
             <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider block mb-1">
               Input SN BAPP
@@ -350,7 +400,7 @@ export default function Sidebar({
             <input
               type="text"
               value={snBapp}
-              onChange={(e) => setSnBapp(e.target.value)}
+              onChange={(e) => handleSnChange(e.target.value)}
               placeholder="Input SN if mismatch"
               className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white focus:outline-none focus:border-blue-500 text-sm font-mono placeholder-gray-500"
             />
@@ -370,7 +420,7 @@ export default function Sidebar({
                   {field.label}
                 </label>
                 <div className="flex flex-wrap gap-1">
-                  {field.options.map((opt) => (
+                  {field.options.map((opt, idx) => (
                     <RadioOption
                       key={opt}
                       fieldId={field.id}
@@ -378,6 +428,7 @@ export default function Sidebar({
                       checked={evaluationForm[field.id] === opt}
                       onChange={handleFormChange}
                       disabled={buttonsDisabled}
+                      isPositive={idx === 0}
                     />
                   ))}
                 </div>
