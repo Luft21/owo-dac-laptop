@@ -299,6 +299,8 @@ export default function Sidebar({
     return allowedFields.includes(field.id);
   });
 
+  const [showPending, setShowPending] = useState(true);
+
   return (
     <aside className="w-96 bg-gray-800 text-white flex-shrink-0 flex flex-col p-4 h-full overflow-hidden border-r border-gray-700">
       <div className="flex justify-between items-center border-b border-gray-700 pb-4 flex-shrink-0">
@@ -309,8 +311,8 @@ export default function Sidebar({
             <button
               onClick={() => setPosition("left")}
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${position === "left"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-gray-500 hover:text-gray-300"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-300"
                 }`}
               title="Left Layout"
             >
@@ -319,8 +321,8 @@ export default function Sidebar({
             <button
               onClick={() => setPosition("right")}
               className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${position === "right"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-gray-500 hover:text-gray-300"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-300"
                 }`}
               title="Right Layout"
             >
@@ -376,7 +378,7 @@ export default function Sidebar({
                 const year = currentDate.getFullYear();
                 const month = String(currentDate.getMonth() + 1).padStart(
                   2,
-                  "0"
+                  "0",
                 );
                 const day = String(currentDate.getDate()).padStart(2, "0");
                 setDate(`${year}-${month}-${day}`);
@@ -439,21 +441,34 @@ export default function Sidebar({
       </div>
 
       <div className="border-t border-gray-700 pt-4 mt-4 flex-shrink-0">
-        <p className="text-xs text-gray-400 mb-2 text-center">
-          Pending: {pendingCount !== null ? pendingCount : "..."}
-        </p>
+        <div className="text-center">
+          <button
+            onClick={() => setShowPending(!showPending)}
+            className="text-xl text-blue-500 hover:underline mb-3"
+          >
+            {showPending ? "Hide" : "Show"}
+          </button>
+        </div>
+
+        {showPending && (
+          <p className="text-xl text-gray-400 mb-2 text-center">
+            Pending: {pendingCount !== null ? pendingCount : "..."}
+          </p>
+        )}
         <div className="flex items-center justify-between mb-4 bg-gray-900/50 p-2 rounded border border-gray-700">
           <span className="text-xs font-bold text-gray-400 uppercase">
             Edit Catatan DAC
           </span>
           <button
             onClick={() => setEnableManualNote(!enableManualNote)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enableManualNote ? "bg-blue-600" : "bg-gray-600"
-              }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              enableManualNote ? "bg-blue-600" : "bg-gray-600"
+            }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enableManualNote ? "translate-x-6" : "translate-x-1"
-                }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                enableManualNote ? "translate-x-6" : "translate-x-1"
+              }`}
             />
           </button>
         </div>
@@ -461,16 +476,18 @@ export default function Sidebar({
           <button
             onClick={() => handleSkip(true)}
             disabled={buttonsDisabled}
-            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${isSubmitting ? "animate-pulse" : ""
-              }`}
+            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${
+              isSubmitting ? "animate-pulse" : ""
+            }`}
           >
             {isSubmitting ? <Spinner /> : "SKIP"}
           </button>
           <button
             onClick={mainButtonAction}
             disabled={buttonsDisabled}
-            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${isSubmitting ? "animate-pulse" : ""
-              }`}
+            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${
+              isSubmitting ? "animate-pulse" : ""
+            }`}
           >
             {isSubmitting ? <Spinner /> : mainButtonLabel}
           </button>
@@ -481,7 +498,7 @@ export default function Sidebar({
           onClick={() => {
             if (
               confirm(
-                "Are you sure you want to logout? This will clear all local session data."
+                "Are you sure you want to logout? This will clear all local session data.",
               )
             ) {
               localStorage.clear();
