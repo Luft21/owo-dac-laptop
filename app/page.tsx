@@ -330,6 +330,11 @@ export default function Home() {
   }
 
   const handleSelectItem = async (item: any) => {
+    // Check SN Merah / Duplicate
+    if (item.cek_sn_penyedia === "2") {
+      alert(`⚠️ PERINGATAN: Serial Number ${item.serial_number} terindikasi MERAH (GANDA/DUPLIKAT)! Harap cek kembali.`);
+    }
+
     // Debounce UI
     setIsTransientDisabled(true);
     setTimeout(() => setIsTransientDisabled(false), 100); // 100ms safety lock
