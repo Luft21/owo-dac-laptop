@@ -128,6 +128,14 @@ export default function StickyInfoBox({
           </div>
           <div>
             <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Model / Series
+            </div>
+            <div className="text-sm font-medium text-zinc-200 truncate" title={itemData.nama_barang}>
+              {itemData.nama_barang || "-"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
               Alamat
             </div>
             <div className="text-xs text-white truncate">
