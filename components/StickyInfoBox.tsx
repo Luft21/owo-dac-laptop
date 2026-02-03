@@ -111,7 +111,7 @@ export default function StickyInfoBox({
         onClick={(e) => e.stopPropagation()}
       >
         {/* School Info */}
-        <div className="">
+        <div className="space-y-3">
           <div>
             <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
               NPSN
@@ -120,11 +120,13 @@ export default function StickyInfoBox({
               {schoolData.npsn || "-"}
             </div>
           </div>
-          <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            Serial Number
-          </div>
-          <div className="text-lg font-mono text-yellow-500">
-            {itemData.serial_number || "-"}
+          <div>
+            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Serial Number
+            </div>
+            <div className="text-lg font-mono text-yellow-500">
+              {itemData.serial_number || "-"}
+            </div>
           </div>
           <div>
             <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
