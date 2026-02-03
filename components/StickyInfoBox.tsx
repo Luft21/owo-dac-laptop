@@ -172,7 +172,6 @@ export default function StickyInfoBox({
             autoComplete="off"
             value={guruSearch}
             onChange={(e) => setGuruSearch(e.target.value)}
-            onMouseEnter={(e) => e.currentTarget.focus()}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 // setGuruSearch(""); // Keep text as per request
