@@ -1344,9 +1344,6 @@ export default function Home() {
               className="absolute top-4 right-4 z-[60] flex gap-2 items-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-black/50 text-white px-3 py-1.5 rounded-full font-bold text-sm select-none backdrop-blur-md border border-white/10 shadow-sm mr-2">
-                {currentImageIndex! + 1} / {parsedData.images.length}
-              </div>
               <button
                 onClick={() => rotateImage("left")}
                 className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
@@ -1399,7 +1396,13 @@ export default function Home() {
               className="flex flex-col z-[60]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-center pb-2">
+              <div className="flex justify-center pb-2 flex-col items-center gap-2">
+                <div className="bg-black/60 text-white px-4 py-1.5 rounded-full text-sm font-medium backdrop-blur-md border border-white/10 shadow-lg">
+                  <span className="text-yellow-500 font-bold mr-2">
+                    {currentImageIndex! + 1} / {parsedData.images.length}
+                  </span>
+                  {parsedData.images[currentImageIndex!].title}
+                </div>
                 <button
                   onClick={() => setShowThumbnails(!showThumbnails)}
                   className="bg-black/50 hover:bg-black/70 text-zinc-300 hover:text-white px-6 py-1 rounded-t-lg backdrop-blur text-xs font-semibold transition-all border-t border-x border-zinc-700/50"
