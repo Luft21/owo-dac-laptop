@@ -212,7 +212,6 @@ export default function StickyInfoBox({
             <input
               type="date"
               value={date}
-              onMouseEnter={(e) => e.currentTarget.focus()}
               onChange={(e) => setDate(e.target.value)}
               onWheel={(e) => {
                 if (!date) return;
