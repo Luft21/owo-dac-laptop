@@ -126,6 +126,7 @@ export default function Home() {
   // Image Viewer State
   const [currentImageIndex, setCurrentImageIndex] = useState<number | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
+  const [showThumbnails, setShowThumbnails] = useState(true);
 
   // Verification Date
   const [verificationDate, setVerificationDate] = useState(
@@ -253,7 +254,7 @@ export default function Home() {
     Promise.all([refreshSession("dac"), refreshSession("datasource")]).finally(
       () => {
         setIsLoading(false);
-         // Load Usernames
+        // Load Usernames
         const dacCache = localStorage.getItem("login_cache_dac");
         if (dacCache) {
           try {
@@ -292,7 +293,7 @@ export default function Home() {
     }
 
     if (sheetData.length > 0 && sidebarOptions.length === 0) {
-      fetchSidebarOptions(); 
+      fetchSidebarOptions();
     }
   }, [sheetData, currentTaskIndex, sidebarOptions.length]);
 
@@ -316,7 +317,7 @@ export default function Home() {
             }
             // Also prefetch datadik
             if (result.school.npsn && !datadikCache.current.has(result.school.npsn)) {
-               fetch(`/api/fetch-school-data?npsn=${result.school.npsn}`, { method: "POST" })
+              fetch(`/api/fetch-school-data?npsn=${result.school.npsn}`, { method: "POST" })
                 .then((res) => res.json())
                 .then((data) => {
                   if (data) datadikCache.current.set(result.school.npsn, data);
@@ -430,58 +431,58 @@ export default function Home() {
   }
 
   const handleSelectItem = async (item: any) => {
-  if (item.cek_sn_penyedia === "2") {
-    alert(`⚠️ PERINGATAN: Serial Number ${item.serial_number} terindikasi MERAH (GANDA/DUPLIKAT)! Harap cek kembali.`);
-  }
-
-  setIsTransientDisabled(true);
-  setTimeout(() => setIsTransientDisabled(false), 100);
-
-  setSelectedSn(item.serial_number);
-  // REMOVED CLEARING LOGIC FOR SEAMLESS TRANSITION
-  // setRawDataHtml(""); 
-  // setCurrentImageIndex(null); 
-
-  // Check Prefetch FIRST
-  if (prefetchedData && prefetchedData.item.serial_number === item.serial_number) {
-    console.log("Using Prefetched Data directly!");
-    setParsedData(prefetchedData);
-    if (prefetchedData.sentDate) {
-      setVerificationDate(prefetchedData.sentDate);
+    if (item.cek_sn_penyedia === "2") {
+      alert(`⚠️ PERINGATAN: Serial Number ${item.serial_number} terindikasi MERAH (GANDA/DUPLIKAT)! Harap cek kembali.`);
     }
-    setSnBapp(item.serial_number || "");
-    setCurrentImageIndex(0);
-    setImageRotation(0);
-    setPrefetchedData(null);
-    return;
-  }
 
-  // Fallback: Fetch Data
-  // NO LOADING STATE - completely seamless (Stale-While-Revalidate)
-  
-  setCurrentExtractedId(null);
-  setSnBapp(item.serial_number || "");
+    setIsTransientDisabled(true);
+    setTimeout(() => setIsTransientDisabled(false), 100);
 
-  let currentSessionId = localStorage.getItem("dac_session");
+    setSelectedSn(item.serial_number);
+    // REMOVED CLEARING LOGIC FOR SEAMLESS TRANSITION
+    // setRawDataHtml(""); 
+    // setCurrentImageIndex(null); 
 
-  try {
-    const data = await fetchItemFromApi(item, currentSessionId || "");
-    if (data) {
-      setCurrentExtractedId(data.extractedId);
-      setParsedData(data);
-      if (data.sentDate) {
-        setVerificationDate(data.sentDate);
+    // Check Prefetch FIRST
+    if (prefetchedData && prefetchedData.item.serial_number === item.serial_number) {
+      console.log("Using Prefetched Data directly!");
+      setParsedData(prefetchedData);
+      if (prefetchedData.sentDate) {
+        setVerificationDate(prefetchedData.sentDate);
       }
-      // Reset view to first image only when new data arrives
-      setCurrentImageIndex(0); 
+      setSnBapp(item.serial_number || "");
+      setCurrentImageIndex(0);
       setImageRotation(0);
+      setPrefetchedData(null);
+      return;
     }
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setDetailLoading(false); // Just in case it was true somehow
-  }
-};
+
+    // Fallback: Fetch Data
+    // NO LOADING STATE - completely seamless (Stale-While-Revalidate)
+
+    setCurrentExtractedId(null);
+    setSnBapp(item.serial_number || "");
+
+    let currentSessionId = localStorage.getItem("dac_session");
+
+    try {
+      const data = await fetchItemFromApi(item, currentSessionId || "");
+      if (data) {
+        setCurrentExtractedId(data.extractedId);
+        setParsedData(data);
+        if (data.sentDate) {
+          setVerificationDate(data.sentDate);
+        }
+        // Reset view to first image only when new data arrives
+        setCurrentImageIndex(0);
+        setImageRotation(0);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDetailLoading(false); // Just in case it was true somehow
+    }
+  };
 
   const handleRefetch = async () => {
     if (sheetData.length > 0 && sheetData[currentTaskIndex]) {
@@ -576,7 +577,7 @@ export default function Home() {
     const restR = optionsR.length > 0 ? optionsR.slice(1) : [];
     const commonOptions = restQ.filter(q => restR.includes(q));
 
-     fieldMapping.forEach((field) => {
+    fieldMapping.forEach((field) => {
       // 1. Prepare Filtered/Sorted Options (Existing Logic)
       let finalOpts = rawOptionsMap[field.id] || [];
 
@@ -601,7 +602,7 @@ export default function Home() {
         newOptions.push({
           ...field,
           options: ["Sesuai", "Tidak Sesuai", "Tidak Ada"],
-        }); 
+        });
         newDefaults[field.id] = "Sesuai";
       }
     });
@@ -684,7 +685,7 @@ export default function Home() {
     // This removes the "waiting" feeling. The status light handles the feedback.
     const isOptimistic = !shouldWaitUser && !isRetry;
     if (isOptimistic) {
-        handleSkip(false);
+      handleSkip(false);
     }
     // ----------------------------
 
@@ -716,7 +717,7 @@ export default function Home() {
           const json = await res.json();
 
           if (json.success) {
-             const cachedData = localStorage.getItem("cached_scraped_data");
+            const cachedData = localStorage.getItem("cached_scraped_data");
             if (cachedData) {
               try {
                 let parsedCache = JSON.parse(cachedData);
@@ -741,7 +742,7 @@ export default function Home() {
               `Submitted ${item.npsn} (${shouldWaitUser ? "Manual Note" : "Background"})`,
             );
             submitSuccess = true;
-            break; 
+            break;
           } else {
             console.error(`Submit Failed (Attempt ${attempt}):`, json.message);
             await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -777,21 +778,21 @@ export default function Home() {
           if (descInput) {
             finalNote = descInput.value || descInput.textContent || "";
           }
-          
-           // Check for alerts Pihak Pertama
-          const alerts = Array.from(doc.querySelectorAll(".alert.alert-danger"));
-           const isPihakPertamaError = alerts.some((alert) =>
-              /Pihak pertama/i.test(alert.textContent || ""),
-            );
 
-            if (isPihakPertamaError) {
-              const pihakPertamaNote = "(1AN) Pihak pertama hanya boleh dari kepala sekolah/wakil kepala sekolah/guru/pengajar/operator sekolah";
-              if (finalNote.length > 0) {
-                finalNote = `${finalNote} ${pihakPertamaNote}`;
-              } else {
-                finalNote = pihakPertamaNote;
-              }
+          // Check for alerts Pihak Pertama
+          const alerts = Array.from(doc.querySelectorAll(".alert.alert-danger"));
+          const isPihakPertamaError = alerts.some((alert) =>
+            /Pihak pertama/i.test(alert.textContent || ""),
+          );
+
+          if (isPihakPertamaError) {
+            const pihakPertamaNote = "(1AN) Pihak pertama hanya boleh dari kepala sekolah/wakil kepala sekolah/guru/pengajar/operator sekolah";
+            if (finalNote.length > 0) {
+              finalNote = `${finalNote} ${pihakPertamaNote}`;
+            } else {
+              finalNote = pihakPertamaNote;
             }
+          }
         }
       } catch (err) {
         console.error("Error fetching view form", err);
@@ -815,7 +816,7 @@ export default function Home() {
           const loginJson = await loginRes.json();
           if (loginJson.success) {
             let pureToken = loginJson.data?.token;
-             if (!pureToken && loginJson.cookie) {
+            if (!pureToken && loginJson.cookie) {
               const match = loginJson.cookie.match(/(?:token|ci_session)=([^;]+)/);
               pureToken = match ? match[1] : loginJson.cookie;
             }
@@ -835,7 +836,7 @@ export default function Home() {
           resi: currentParsedData.resi,
           note: finalNote,
           session_id: currentDacSession,
-          bapp_id: currentParsedData.bapp_id || "", 
+          bapp_id: currentParsedData.bapp_id || "",
           // bapp_date: formatToDacISO(verificationDate) // Not used in DAC save-approval logic usually unless updated route, but passing note/status/id is simpler
         };
 
@@ -865,9 +866,9 @@ export default function Home() {
 
           setProcessingStatus("success");
           setTimeout(() => setProcessingStatus("idle"), 3000);
-          
+
           if (!isOptimistic) {
-             handleSkip(false); // Only skip if not already skipped optimistically
+            handleSkip(false); // Only skip if not already skipped optimistically
           }
         }
       }
@@ -893,10 +894,10 @@ export default function Home() {
     if (!session || !parsedData || sheetData.length === 0) return;
 
     const currentItem = sheetData[currentTaskIndex];
-    if(isSubmitting) return;
+    if (isSubmitting) return;
 
     // CAPTURE STATE SNAPSHOTS
-    const capturedForm = { ...evaluationForm }; 
+    const capturedForm = { ...evaluationForm };
     const capturedSnBapp = snBapp;
     const capturedDate = verificationDate;
     const capturedId = id;
@@ -909,11 +910,11 @@ export default function Home() {
 
     const payload: Record<string, string> = {
       id_user: capturedId,
-      npsn: capturedItem.npsn, 
+      npsn: capturedItem.npsn,
       sn_penyedia: capturedItem.serial_number,
       cek_sn_penyedia: capturedItem.cek_sn_penyedia,
-      id_update: capturedItem.action_id, 
-      no_bapp: capturedItem.bapp, 
+      id_update: capturedItem.action_id,
+      no_bapp: capturedItem.bapp,
       ket_tgl_bapp: capturedForm["F"],
       tgl_bapp: capturedDate,
       sn_bapp: finalSnBapp,
@@ -941,12 +942,12 @@ export default function Home() {
     if (!session || !retryPayloads.item) return;
 
     await handleSubmissionProcess(
-        session,
-        retryPayloads.submitPayload,
-        retryPayloads.item,
-        retryPayloads.currentParsedData!,
-        false, // retry usually implies we just want to push it through
-        true
+      session,
+      retryPayloads.submitPayload,
+      retryPayloads.item,
+      retryPayloads.currentParsedData!,
+      false, // retry usually implies we just want to push it through
+      true
     );
   };
 
@@ -960,7 +961,7 @@ export default function Home() {
 
 
   const executeSaveApproval = async (payload: any) => {
-      // Helper for manual modal
+    // Helper for manual modal
     try {
       const res = await fetch("/api/save-approval", {
         method: "POST",
@@ -980,13 +981,13 @@ export default function Home() {
 
     const updatedPayload = {
       ...pendingApprovalData,
-      note: manualNote, 
+      note: manualNote,
     };
 
     await executeSaveApproval(updatedPayload);
     setShowNoteModal(false);
     setPendingApprovalData(null);
-    handleSkip(false); 
+    handleSkip(false);
   };
 
 
@@ -1001,7 +1002,7 @@ export default function Home() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            term: parsedData.school.npsn, 
+            term: parsedData.school.npsn,
             session_id: currentSessionId,
           }),
         });
@@ -1051,9 +1052,9 @@ export default function Home() {
         title="Login DAC"
         loginType="dac"
         onLoginSuccess={(d) => {
-             localStorage.setItem("dac_session", d.cookie);
-             localStorage.setItem("username", d.username);
-             setDacAuthenticated(true);
+          localStorage.setItem("dac_session", d.cookie);
+          localStorage.setItem("username", d.username);
+          setDacAuthenticated(true);
         }}
       />
     );
@@ -1065,8 +1066,8 @@ export default function Home() {
         title="Login ASSHAL.TECH"
         loginType="datasource"
         onLoginSuccess={(d) => {
-             localStorage.setItem("datasource_session", d.cookie);
-             setDataSourceAuthenticated(true);
+          localStorage.setItem("datasource_session", d.cookie);
+          setDataSourceAuthenticated(true);
         }}
       />
     );
@@ -1112,7 +1113,7 @@ export default function Home() {
                 </div>
               </div>
 
-               <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
+              <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-5">
                 <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 border-b dark:border-zinc-700 pb-2">
                   Data Barang
                 </h2>
@@ -1245,7 +1246,7 @@ export default function Home() {
         </div>
       </div>
 
-       <div
+      <div
         className={`flex-shrink-0 h-full ${sidebarPosition === "left"
           ? "order-1 border-r border-zinc-700"
           : "order-2 border-l border-zinc-700"
@@ -1280,7 +1281,7 @@ export default function Home() {
         />
       </div>
 
-       {/* Modal Note Manual */}
+      {/* Modal Note Manual */}
       {showNoteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-2xl p-6 w-full max-w-lg border border-zinc-200 dark:border-zinc-700 animate-in fade-in zoom-in duration-200">
@@ -1321,103 +1322,121 @@ export default function Home() {
       )}
 
       {currentImageIndex !== null && parsedData && (
-          <div>
-            <StickyInfoBox
-              schoolData={parsedData.school}
-              itemData={parsedData.item}
-              history={parsedData.history}
-              date={verificationDate}
-              setDate={setVerificationDate}
-              kepsek={datadikData.kepsek}
-              guruList={datadikData.guruList}
-              isLoadingGuru={datadikData.isLoading}
-              onRefetchDatadik={() => parsedData.school.npsn && fetchDatadik(parsedData.school.npsn, true)}
-            />
+        <div>
+          <StickyInfoBox
+            schoolData={parsedData.school}
+            itemData={parsedData.item}
+            history={parsedData.history}
+            date={verificationDate}
+            setDate={setVerificationDate}
+            kepsek={datadikData.kepsek}
+            guruList={datadikData.guruList}
+            isLoadingGuru={datadikData.isLoading}
+            onRefetchDatadik={() => parsedData.school.npsn && fetchDatadik(parsedData.school.npsn, true)}
+          />
+
+          <div
+            className={`absolute top-0 bottom-0 z-50 flex flex-col bg-black/95 backdrop-blur-sm transition-all duration-300 ${sidebarPosition === "left" ? "left-96 right-0" : "left-0 right-96"
+              }`}
+            onClick={() => setCurrentImageIndex(null)}
+          >
+            <div
+              className="absolute top-4 right-4 z-[60] flex gap-2 items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-black/50 text-white px-3 py-1.5 rounded-full font-bold text-sm select-none backdrop-blur-md border border-white/10 shadow-sm mr-2">
+                {currentImageIndex! + 1} / {parsedData.images.length}
+              </div>
+              <button
+                onClick={() => rotateImage("left")}
+                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
+              >
+                ↺
+              </button>
+              <button
+                onClick={() => rotateImage("right")}
+                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
+              >
+                ↻
+              </button>
+              <button
+                onClick={() => setCurrentImageIndex(null)}
+                className="bg-red-500/80 hover:bg-red-600 text-white px-4 py-2 rounded-full font-bold transition-colors"
+              >
+                ✕
+              </button>
+            </div>
 
             <div
-              className={`absolute top-0 bottom-0 z-50 flex flex-col bg-black/95 backdrop-blur-sm transition-all duration-300 ${sidebarPosition === "left" ? "left-96 right-0" : "left-0 right-96"
-                }`}
-              onClick={() => setCurrentImageIndex(null)}
+              className="flex-1 flex items-center justify-center p-4 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div
-                className="absolute top-4 right-4 z-[60] flex gap-2"
-                onClick={(e) => e.stopPropagation()}
+              <TransformWrapper
+                key={currentImageIndex} // Force remount on image change to reset zoom
+                ref={transformRef}
+                initialScale={1}
+                minScale={0.5}
+                maxScale={4}
+                centerOnInit
               >
-                <button
-                  onClick={() => rotateImage("left")}
-                  className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
+                <TransformComponent
+                  wrapperStyle={{ width: "100%", height: "100%" }}
+                  contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
-                  ↺
-                </button>
-                <button
-                  onClick={() => rotateImage("right")}
-                  className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full font-bold transition-colors"
-                >
-                  ↻
-                </button>
-                <button
-                  onClick={() => setCurrentImageIndex(null)}
-                  className="bg-red-500/80 hover:bg-red-600 text-white px-4 py-2 rounded-full font-bold transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div
-                className="flex-1 flex items-center justify-center p-4 overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <TransformWrapper
-                  key={currentImageIndex} // Force remount on image change to reset zoom
-                  ref={transformRef}
-                  initialScale={1}
-                  minScale={0.5}
-                  maxScale={4}
-                  centerOnInit
-                >
-                  <TransformComponent
-                    wrapperStyle={{ width: "100%", height: "100%" }}
-                    contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-                  >
-                    <img
-                      src={parsedData.images[currentImageIndex].src}
-                      alt={parsedData.images[currentImageIndex].title}
-                      className="max-h-full max-w-full object-contain transition-transform duration-200"
-                      style={{
-                        transform: `rotate(${imageRotation}deg)`,
-                      }}
-                    />
-                  </TransformComponent>
-                </TransformWrapper>
-              </div>
-
-               <div
-                className="h-20 bg-black/50 overflow-x-auto whitespace-nowrap p-2 flex gap-2 justify-center"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {parsedData.images.map((img, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => {
-                      setCurrentImageIndex(idx);
-                      setImageRotation(0);
+                  <img
+                    src={parsedData.images[currentImageIndex].src}
+                    alt={parsedData.images[currentImageIndex].title}
+                    className="max-h-full max-w-full object-contain transition-transform duration-200"
+                    style={{
+                      transform: `rotate(${imageRotation}deg)`,
                     }}
-                    className={`inline-block h-full aspect-square cursor-pointer rounded overflow-hidden border-2 transition-all ${currentImageIndex === idx
-                      ? "border-yellow-500 scale-105"
-                      : "border-transparent opacity-60 hover:opacity-100"
-                      }`}
-                  >
-                    <img
-                      src={img.src}
-                      alt={img.title}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                ))}
+                  />
+                </TransformComponent>
+              </TransformWrapper>
+            </div>
+
+            <div
+              className="flex flex-col z-[60]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-center pb-2">
+                <button
+                  onClick={() => setShowThumbnails(!showThumbnails)}
+                  className="bg-black/50 hover:bg-black/70 text-zinc-300 hover:text-white px-6 py-1 rounded-t-lg backdrop-blur text-xs font-semibold transition-all border-t border-x border-zinc-700/50"
+                >
+                  {showThumbnails ? "▼ Sembunyikan" : "▲ Tampilkan Gallery"}
+                </button>
               </div>
+
+              {showThumbnails && (
+                <div
+                  className="h-20 bg-black/50 overflow-x-auto whitespace-nowrap p-2 flex gap-2 justify-center animate-in slide-in-from-bottom-2 duration-200"
+                >
+                  {parsedData.images.map((img, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        setCurrentImageIndex(idx);
+                        setImageRotation(0);
+                      }}
+                      className={`inline-block h-full aspect-square cursor-pointer rounded overflow-hidden border-2 transition-all ${currentImageIndex === idx
+                        ? "border-yellow-500 scale-105"
+                        : "border-transparent opacity-60 hover:opacity-100"
+                        }`}
+                    >
+                      <img
+                        src={img.src}
+                        alt={img.title}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }
