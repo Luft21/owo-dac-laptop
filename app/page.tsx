@@ -447,7 +447,9 @@ export default function Home() {
     if (prefetchedData && prefetchedData.item.serial_number === item.serial_number) {
       console.log("Using Prefetched Data directly!");
       setParsedData(prefetchedData);
-      if (prefetchedData.sentDate) {
+      if (prefetchedData.bapp_date) {
+        setVerificationDate(prefetchedData.bapp_date);
+      } else if (prefetchedData.sentDate) {
         setVerificationDate(prefetchedData.sentDate);
       }
       setSnBapp(item.serial_number || "");
@@ -470,7 +472,9 @@ export default function Home() {
       if (data) {
         setCurrentExtractedId(data.extractedId);
         setParsedData(data);
-        if (data.sentDate) {
+        if (data.bapp_date) {
+          setVerificationDate(data.bapp_date);
+        } else if (data.sentDate) {
           setVerificationDate(data.sentDate);
         }
         // Reset view to first image only when new data arrives
@@ -1029,7 +1033,10 @@ export default function Home() {
   }, [parsedData?.school?.npsn]);
 
   useEffect(() => {
-    if (parsedData?.shipping?.firstLogDate) {
+    if (parsedData?.bapp_date) {
+      setVerificationDate(parsedData.bapp_date);
+      console.log("Auto-populated verification date from BAPP:", parsedData.bapp_date);
+    } else if (parsedData?.shipping?.firstLogDate) {
       const detectedDate = parseDateToInputFormat(parsedData.shipping.firstLogDate);
       if (detectedDate) {
         setVerificationDate(detectedDate);

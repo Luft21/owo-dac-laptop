@@ -174,6 +174,20 @@ export const parseHtmlData = (html: string, initialExtractedId: string, bapp_id?
         }
     }
 
+    // Parse Tanggal BAPP
+    let bappDateParsed: string | undefined;
+    const rawBappDate = getValueByLabel("Tanggal BAPP");
+    if (rawBappDate) {
+        // Assume format DD/MM/YYYY e.g. 06/02/2026
+        const parts = rawBappDate.split("/");
+        if (parts.length === 3) {
+            const day = parts[0];
+            const month = parts[1];
+            const year = parts[2];
+            bappDateParsed = `${year}-${month}-${day}`;
+        }
+    }
+
     return {
         school,
         item,
@@ -187,6 +201,7 @@ export const parseHtmlData = (html: string, initialExtractedId: string, bapp_id?
         extractedId: htmlId || initialExtractedId,
         resi: resi || "-",
         sentDate,
-        bapp_id
+        bapp_id,
+        bapp_date: bappDateParsed
     };
 };
