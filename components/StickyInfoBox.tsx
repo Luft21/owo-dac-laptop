@@ -206,8 +206,8 @@ export default function StickyInfoBox({
         {/* Date Input */}
         {date !== undefined && setDate && (
           <div>
-            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-              Tanggal Verifikasi
+            <label className="text-xs font-bold text-yellow-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+              <span className="text-lg"></span> Tanggal Verifikasi
             </label>
             <input
               type="date"
@@ -226,9 +226,9 @@ export default function StickyInfoBox({
                 const day = String(currentDate.getDate()).padStart(2, "0");
                 setDate(`${year}-${month}-${day}`);
               }}
-              className="w-full bg-zinc-900 border border-zinc-600 rounded px-2 py-1 text-white focus:outline-none focus:border-yellow-500 text-sm"
+              className="w-full bg-yellow-900/20 border-2 border-yellow-500 rounded px-3 py-2 text-yellow-100 font-bold focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-500/50 text-base shadow-[0_0_15px_rgba(234,179,8,0.2)]"
             />
-            <p className="text-[10px] text-zinc-500 mt-1">
+            <p className="text-[11px] text-yellow-500/80 mt-1 font-medium italic">
               * Pastikan tanggal sesuai dengan BAPP
             </p>
           </div>
