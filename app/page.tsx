@@ -1340,6 +1340,10 @@ export default function Home() {
             guruList={datadikData.guruList}
             isLoadingGuru={datadikData.isLoading}
             onRefetchDatadik={() => parsedData.school.npsn && fetchDatadik(parsedData.school.npsn, true)}
+            isDateEditable={
+              sidebarOptions.find((o) => o.id === "F")?.options?.[1] ===
+              evaluationForm["F"]
+            }
           />
 
           <div

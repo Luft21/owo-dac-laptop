@@ -12,6 +12,7 @@ interface StickyInfoBoxProps {
   guruList: any[];
   isLoadingGuru: boolean;
   onRefetchDatadik: () => void;
+  isDateEditable?: boolean; // New Prop
 }
 
 export default function StickyInfoBox({
@@ -24,6 +25,7 @@ export default function StickyInfoBox({
   guruList,
   isLoadingGuru,
   onRefetchDatadik,
+  isDateEditable = false, // Default false
 }: StickyInfoBoxProps) {
   const boxRef = useRef<HTMLDivElement>(null!);
   const { position, handleMouseDown } = useDraggable<HTMLDivElement>(
@@ -213,8 +215,9 @@ export default function StickyInfoBox({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              disabled={!isDateEditable}
               onWheel={(e) => {
-                if (!date) return;
+                if (!date || !isDateEditable) return;
                 const currentDate = new Date(date);
                 const daysToAdd = e.deltaY > 0 ? -1 : 1;
                 currentDate.setDate(currentDate.getDate() + daysToAdd);
@@ -226,10 +229,14 @@ export default function StickyInfoBox({
                 const day = String(currentDate.getDate()).padStart(2, "0");
                 setDate(`${year}-${month}-${day}`);
               }}
-              className="w-full bg-yellow-900/20 border-2 border-yellow-500 rounded px-3 py-2 text-yellow-100 font-bold focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-500/50 text-base shadow-[0_0_15px_rgba(234,179,8,0.2)]"
+              className={`w-full border-2 rounded px-3 py-2 font-bold focus:outline-none focus:ring-2 text-lg shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-colors
+                ${isDateEditable
+                  ? "bg-yellow-900/20 border-yellow-500 text-yellow-100 focus:border-yellow-400 focus:ring-yellow-500/50"
+                  : "bg-zinc-800/50 border-zinc-700 text-zinc-500 cursor-not-allowed opacity-70"
+                }`}
             />
             <p className="text-[11px] text-yellow-500/80 mt-1 font-medium italic">
-              * Pastikan tanggal sesuai dengan BAPP
+              {isDateEditable ? "* Pastikan tanggal sesuai dengan BAPP" : "* Tanggal hanya bisa diedit jika TGL BAPP diset manual"}
             </p>
           </div>
         )}
