@@ -215,12 +215,26 @@ export default function StickyInfoBox({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              min="2025-12-01"
+              max={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`}
               disabled={!isDateEditable}
               onWheel={(e) => {
                 if (!date || !isDateEditable) return;
                 const currentDate = new Date(date);
                 const daysToAdd = e.deltaY > 0 ? -1 : 1;
                 currentDate.setDate(currentDate.getDate() + daysToAdd);
+
+                // Validate new date range
+                const minDate = new Date("2025-12-01");
+                const maxDate = new Date();
+
+                // Reset time components for accurate comparison
+                maxDate.setHours(0, 0, 0, 0);
+                minDate.setHours(0, 0, 0, 0);
+                currentDate.setHours(0, 0, 0, 0);
+
+                if (currentDate < minDate || currentDate > maxDate) return;
+
                 const year = currentDate.getFullYear();
                 const month = String(currentDate.getMonth() + 1).padStart(
                   2,
