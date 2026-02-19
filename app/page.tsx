@@ -453,7 +453,7 @@ export default function Home() {
         setVerificationDate(prefetchedData.sentDate);
       }
       setSnBapp(item.serial_number || "");
-      setCurrentImageIndex(prefetchedData.images && prefetchedData.images.length > 5 ? 5 : 0);
+      setCurrentImageIndex(0);
       setImageRotation(0);
       setPrefetchedData(null);
       return;
@@ -478,7 +478,7 @@ export default function Home() {
           setVerificationDate(data.sentDate);
         }
         // Reset view to first image only when new data arrives
-        setCurrentImageIndex(data.images && data.images.length > 5 ? 5 : 0);
+        setCurrentImageIndex(0);
         setImageRotation(0);
       }
     } catch (err) {
