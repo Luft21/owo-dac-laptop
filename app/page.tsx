@@ -453,7 +453,7 @@ export default function Home() {
         setVerificationDate(prefetchedData.sentDate);
       }
       setSnBapp(item.serial_number || "");
-      setCurrentImageIndex(0);
+      setCurrentImageIndex(prefetchedData.images && prefetchedData.images.length > 5 ? 5 : 0);
       setImageRotation(0);
       setPrefetchedData(null);
       return;
@@ -478,7 +478,7 @@ export default function Home() {
           setVerificationDate(data.sentDate);
         }
         // Reset view to first image only when new data arrives
-        setCurrentImageIndex(0);
+        setCurrentImageIndex(data.images && data.images.length > 5 ? 5 : 0);
         setImageRotation(0);
       }
     } catch (err) {
@@ -541,8 +541,6 @@ export default function Home() {
     const doc = parser.parseFromString(html, "text/html");
 
     const fieldMapping: Omit<EvaluationField, "options">[] = [
-      { id: "F", label: "TGL BAPP", name: "ket_tgl_bapp" },
-      { id: "G", label: "GEO TAGGING", name: "geo_tag" },
       { id: "H", label: "FOTO SEKOLAH/PAPAN NAMA", name: "f_papan_identitas" },
       { id: "I", label: "FOTO BOX & PIC", name: "f_box_pic" },
       { id: "J", label: "FOTO KELENGKAPAN UNIT", name: "f_unit" },
@@ -552,6 +550,8 @@ export default function Home() {
       { id: "R", label: "BAPP HAL 2", name: "bapp_hal2" },
       { id: "S", label: "TTD BAPP", name: "nm_ttd_bapp" },
       { id: "T", label: "STEMPEL", name: "stempel" },
+      { id: "F", label: "TGL BAPP", name: "ket_tgl_bapp" },
+      { id: "G", label: "GEO TAGGING", name: "geo_tag" },
     ];
 
     const newOptions: EvaluationField[] = [];
@@ -1285,6 +1285,7 @@ export default function Home() {
           failedStage={failedStage}
           errorMessage={errorMessage}
           onRetry={handleRetry}
+          disabledFields={["F"]}
         />
       </div>
 
@@ -1335,15 +1336,32 @@ export default function Home() {
             itemData={parsedData.item}
             history={parsedData.history}
             date={verificationDate}
-            setDate={setVerificationDate}
+            setDate={(newDate: string) => {
+              setVerificationDate(newDate);
+
+              // Determine Original Date
+              let originalDate = parsedData.bapp_date;
+              if (!originalDate && parsedData.shipping?.firstLogDate) {
+                originalDate = parseDateToInputFormat(parsedData.shipping.firstLogDate) || "";
+              }
+
+              // Auto-set TGL BAPP (F)
+              setEvaluationForm((prev) => {
+                const fieldF = sidebarOptions.find((o) => o.id === "F");
+                if (fieldF && fieldF.options.length > 1) {
+                  // If matches original, revert to Index 0 (Sesuai)
+                  // If different, set to Index 1 (Tidak Sesuai/Manual)
+                  const targetIndex = (newDate === originalDate) ? 0 : 1;
+                  return { ...prev, F: fieldF.options[targetIndex] };
+                }
+                return prev;
+              });
+            }}
             kepsek={datadikData.kepsek}
             guruList={datadikData.guruList}
             isLoadingGuru={datadikData.isLoading}
             onRefetchDatadik={() => parsedData.school.npsn && fetchDatadik(parsedData.school.npsn, true)}
-            isDateEditable={
-              sidebarOptions.find((o) => o.id === "F")?.options?.[1] ===
-              evaluationForm["F"]
-            }
+            isDateEditable={true}
           />
 
           <div

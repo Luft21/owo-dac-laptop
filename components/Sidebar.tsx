@@ -117,12 +117,11 @@ const RadioOption = ({
     onClick={() => onChange(fieldId, option)}
     disabled={disabled}
     className={`px-3 py-1 text-xs rounded-full border transition-colors disabled:opacity-50 mb-1 mr-1
-      ${
-        checked
-          ? isDanger
-            ? "bg-red-600 border-red-600 text-white font-semibold"
-            : "bg-blue-500 border-blue-500 text-white font-semibold"
-          : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
+      ${checked
+        ? isDanger
+          ? "bg-red-600 border-red-600 text-white font-semibold"
+          : "bg-blue-500 border-blue-500 text-white font-semibold"
+        : "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:border-gray-500"
       }`}
   >
     {option}
@@ -155,6 +154,7 @@ interface SidebarProps {
   failedStage?: "none" | "submit" | "save-approval";
   errorMessage?: string;
   onRetry?: () => void;
+  disabledFields?: string[];
 }
 
 export const defaultEvaluationValues: Record<string, string> = {
@@ -198,6 +198,7 @@ export default function Sidebar({
   failedStage = "none",
   errorMessage = "",
   onRetry,
+  disabledFields = [],
 }: SidebarProps & {
   currentImageIndex: number | null;
   snBapp?: string;
@@ -330,23 +331,21 @@ export default function Sidebar({
       {/* Context Mode Switch - Only Visible in Full Screen Image Mode */}
       {currentImageIndex !== null && (
         <div className="flex bg-gray-700/50 rounded-lg p-1 mb-4 border border-gray-600">
-           <button
+          <button
             onClick={() => setContextMode("default")}
-            className={`flex-1 py-1.5 text-xs rounded-md font-bold transition-all ${
-              contextMode === "default"
-                ? "bg-gray-600 text-white shadow-sm border border-gray-500"
-                : "text-gray-400 hover:text-gray-200"
-            }`}
+            className={`flex-1 py-1.5 text-xs rounded-md font-bold transition-all ${contextMode === "default"
+              ? "bg-gray-600 text-white shadow-sm border border-gray-500"
+              : "text-gray-400 hover:text-gray-200"
+              }`}
           >
             Semua
           </button>
           <button
             onClick={() => setContextMode("context")}
-            className={`flex-1 py-1.5 text-xs rounded-md font-bold transition-all ${
-              contextMode === "context"
-                ? "bg-blue-600 text-white shadow-sm border border-blue-400"
-                : "text-gray-400 hover:text-gray-200"
-            }`}
+            className={`flex-1 py-1.5 text-xs rounded-md font-bold transition-all ${contextMode === "context"
+              ? "bg-blue-600 text-white shadow-sm border border-blue-400"
+              : "text-gray-400 hover:text-gray-200"
+              }`}
           >
             Sesuai Gambar
           </button>
@@ -400,7 +399,7 @@ export default function Sidebar({
                         option={opt}
                         checked={evaluationForm[field.id] === opt}
                         onChange={handleFormChange}
-                        disabled={buttonsDisabled}
+                        disabled={buttonsDisabled || disabledFields.includes(field.id)}
                         isDanger={opt !== field.options[0]}
                       />
                     ))
@@ -410,13 +409,12 @@ export default function Sidebar({
                       onChange={(e) =>
                         handleFormChange(field.id, e.target.value)
                       }
-                      disabled={buttonsDisabled}
-                      className={`w-full rounded px-2 py-1 text-xs text-white focus:outline-none mb-1 border ${
-                        (evaluationForm[field.id] || field.options[0]) !==
+                      disabled={buttonsDisabled || disabledFields.includes(field.id)}
+                      className={`w-full rounded px-2 py-1 text-xs text-white focus:outline-none mb-1 border ${(evaluationForm[field.id] || field.options[0]) !==
                         field.options[0]
-                          ? "bg-red-500 border-red-200"
-                          : "bg-gray-700 border-gray-600 focus:border-blue-500"
-                      }`}
+                        ? "bg-red-500 border-red-200"
+                        : "bg-gray-700 border-gray-600 focus:border-blue-500"
+                        }`}
                     >
                       {field.options.map((opt) => (
                         <option key={opt} value={opt}>
@@ -562,21 +560,19 @@ export default function Sidebar({
                       <div className="flex bg-gray-900 p-1 rounded border border-gray-600">
                         <button
                           onClick={() => handleViewModeChange("button")}
-                          className={`flex-1 py-1 text-xs rounded transition-all ${
-                            viewMode === "button"
-                              ? "bg-blue-600 text-white"
-                              : "text-gray-400 hover:text-gray-200"
-                          }`}
+                          className={`flex-1 py-1 text-xs rounded transition-all ${viewMode === "button"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                            }`}
                         >
                           Button
                         </button>
                         <button
                           onClick={() => handleViewModeChange("dropdown")}
-                          className={`flex-1 py-1 text-xs rounded transition-all ${
-                            viewMode === "dropdown"
-                              ? "bg-blue-600 text-white"
-                              : "text-gray-400 hover:text-gray-200"
-                          }`}
+                          className={`flex-1 py-1 text-xs rounded transition-all ${viewMode === "dropdown"
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-400 hover:text-gray-200"
+                            }`}
                         >
                           Dropdown
                         </button>
@@ -693,18 +689,16 @@ export default function Sidebar({
           <button
             onClick={() => handleSkip(true)}
             disabled={buttonsDisabled}
-            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${
-              isSubmitting ? "animate-pulse" : ""
-            }`}
+            className={`flex-1 p-3 bg-gray-500 rounded-md text-white font-bold hover:bg-gray-400 disabled:opacity-50 transition-colors ${isSubmitting ? "animate-pulse" : ""
+              }`}
           >
             {isSubmitting ? <Spinner /> : "SKIP"}
           </button>
           <button
             onClick={mainButtonAction}
             disabled={buttonsDisabled}
-            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${
-              isSubmitting ? "animate-pulse" : ""
-            }`}
+            className={`flex-1 p-3 rounded-md text-white font-bold disabled:opacity-50 transition-colors ${mainButtonColor} ${isSubmitting ? "animate-pulse" : ""
+              }`}
           >
             {isSubmitting ? <Spinner /> : mainButtonLabel}
           </button>
