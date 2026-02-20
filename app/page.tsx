@@ -1529,8 +1529,9 @@ export default function Home() {
                 key={currentImageIndex} // Force remount on image change to reset zoom
                 ref={transformRef}
                 initialScale={1}
-                minScale={0.5}
-                maxScale={4}
+                minScale={0.1}
+                maxScale={100}
+                limitToBounds={false}
                 centerOnInit
               >
                 <TransformComponent
