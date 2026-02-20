@@ -1003,10 +1003,12 @@ export default function Home() {
           setManualNote(note);
           setShowNoteModal(true);
           setProcessingStatus("idle");
+          setIsNavigating(false); // Release UI block so user can interact
           
       } catch (e: any) {
           setProcessingStatus("error");
           setErrorMessage(e.message);
+          setIsNavigating(false); // Release UI block on error
       }
   };
 
